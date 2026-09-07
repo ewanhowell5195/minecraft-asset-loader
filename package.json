@@ -1,6 +1,6 @@
 {
   "name": "minecraft-asset-loader",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Fetch anything from any Minecraft: Java Edition version, in Node and the browser, touching the network as little as possible",
   "author": "Ewan Howell <ewanhowell5195>",
   "license": "MPL-2.0",
