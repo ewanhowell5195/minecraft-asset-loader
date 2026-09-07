@@ -306,13 +306,20 @@ const count = await assets.export({ dir: "./out", version: "b1.7.3" })
 
 Everything Mojang serves except the version manifest is immutable and named by hash, so it is cached forever and never revalidated. On Node.js, the manifest is cached with its expiry. In a browser the browser cache handles this.
 
-`assets.loadJar()` downloads a version's jar data immediately instead of waiting for the first read, with byte progress for a loading bar:
+| Method | Description |
+|---|---|
+| `.loadJar(options?)` | Downloads a version's jar data immediately instead of waiting for the first read. `onProgress` is called with `(done, total)` in bytes, for a loading bar |
+| `.cacheStats()` | The cache as `{ files, size }` in bytes |
+| `.listCache()` | Every cached file as `{ key, size }`, biggest first |
+| `.clearCache(key?)` | Clears the full cache, or just one file when passed its key |
 
 ```js
 await assets.loadJar({ version: "26.1.2", onProgress: (done, total) => {} })
-```
 
-`assets.clearCache()` clears the full cache.
+await assets.cacheStats()                 // { files: 212, size: 48213096 }
+const [biggest] = await assets.listCache()
+await assets.clearCache(biggest.key)
+```
 
 ### Your own cache
 
@@ -323,13 +330,14 @@ const assets = new MinecraftAssets({
   cacheAPI: {
     read: key => store.get(key),       // Uint8Array, or undefined
     write: (key, bytes) => store.set(key, bytes),
-    delete: key => store.delete(key),  // optional
-    clear: () => store.clear()         // optional
+    delete: key => store.delete(key),  // optional, powers clearCache(key)
+    clear: () => store.clear(),        // optional, powers clearCache()
+    list: () => Array.from(store, ([key, bytes]) => ({ key, size: bytes.length }))  // optional, powers cacheStats() and listCache()
   }
 })
 ```
 
-Keys are strings starting `meta/` or `blobs/`, and values are always a `Uint8Array`.
+Keys are strings starting `meta/` or `blobs/`, and values are always a `Uint8Array`. `cacheStats()` and `listCache()` are `null` when `list()` is not provided.
 
 ### Browser
 

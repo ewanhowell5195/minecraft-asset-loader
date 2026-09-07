@@ -145,6 +145,44 @@ test("clearCache: wipes the directory store", async () => {
   await fs.rm(dir, { recursive: true, force: true })
 })
 
+test("cacheStats, listCache, and single-file purge", async () => {
+  const dir = path.join(os.tmpdir(), "minecraft-assets-tests", "cache-stats")
+  await fs.rm(dir, { recursive: true, force: true })
+  const mc = new MinecraftAssets({ cacheDir: dir, version: "1.21.4" })
+  await mc.read("assets/minecraft/textures/block/stone.png")
+  await sleep(600)
+
+  const stats = await mc.cacheStats()
+  assert.ok(stats.files >= 3 && stats.size > 1_000_000)
+  const list = await mc.listCache()
+  assert.equal(list.length, stats.files)
+  for (let i = 1; i < list.length; i++) assert.ok(list[i - 1].size >= list[i].size, "biggest first")
+  assert.ok(list.every(f => /^(meta|blobs)\//.test(f.key)))
+
+  const jar = list.find(f => f.key.startsWith("blobs/jar_"))
+  await mc.clearCache(jar.key)
+  assert.ok(!(await mc.listCache()).some(f => f.key === jar.key), "one file purged")
+  assert.equal((await mc.cacheStats()).files, stats.files - 1)
+
+  const store = new Map()
+  const api = {
+    read: k => store.get(k),
+    write: (k, d) => store.set(k, d),
+    delete: k => store.delete(k),
+    list: () => Array.from(store, ([key, d]) => ({ key, size: d.length }))
+  }
+  const mc2 = new MinecraftAssets({ cacheAPI: api, version: "1.21.4" })
+  await mc2.read("assets/minecraft/textures/block/stone.png")
+  await sleep(600)
+  assert.ok((await mc2.cacheStats()).size > 0)
+  const key = (await mc2.listCache())[0].key
+  await mc2.clearCache(key)
+  assert.ok(!store.has(key), "purge reaches the cacheAPI delete")
+
+  assert.equal(await new MinecraftAssets({ cacheAPI: {} }).cacheStats(), null, "no list() means unknowable")
+  await fs.rm(dir, { recursive: true, force: true })
+})
+
 test("the cache is an accelerator: results identical with none at all", async () => {
   const none = new MinecraftAssets({ cacheAPI: {}, version: "1.21.4" })
   const cached = new MinecraftAssets({ cacheDir: path.join(os.tmpdir(), "minecraft-assets-tests", "cache-acc"), version: "1.21.4" })

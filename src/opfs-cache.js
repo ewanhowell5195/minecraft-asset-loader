@@ -3,6 +3,7 @@ import { encoder, decoder } from "./util.js"
 const STORES = ["meta", "blobs"]
 const SAFE = /[^A-Za-z0-9_.%-]/g
 const encodeKey = key => encodeURIComponent(key).replace(SAFE, c => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"))
+const decodeKey = name => decodeURIComponent(name)
 
 export class OpfsCache {
   constructor(dir, { maxSize = 1_000_000_000 } = {}) {
@@ -65,6 +66,14 @@ export class OpfsCache {
     const name = encodeKey(key)
     index.delete(store + "/" + name)
     await (await this._dir(store)).removeEntry(name).catch(() => {})
+  }
+
+  async list() {
+    const index = await this._ready()
+    return [...index.entries()].map(([id, rec]) => {
+      const slash = id.indexOf("/")
+      return { key: id.slice(0, slash + 1) + decodeKey(id.slice(slash + 1)), size: rec.size }
+    })
   }
 
   async clear() {

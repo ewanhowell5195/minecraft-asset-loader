@@ -84,6 +84,14 @@ export class FileCache {
     await fs.rm(file, { force: true })
   }
 
+  async list() {
+    const index = await this._ready()
+    return [...index.entries()].map(([id, rec]) => {
+      const slash = id.indexOf("/")
+      return { key: id.slice(0, slash + 1) + decodeKey(id.slice(slash + 1)), size: rec.size }
+    })
+  }
+
   async keys(store) {
     const names = await fs.readdir(path.join(this.dir, store)).catch(() => [])
     return names.filter(n => !n.includes(".tmp-")).map(decodeKey)

@@ -350,11 +350,27 @@ export default class MinecraftAssets {
     return wanted.length
   }
 
-  async clearCache() {
+  async cacheStats() {
+    const list = await this._store.list()
+    if (!list) return null
+    let size = 0
+    for (const f of list) size += f.size
+    return { files: list.length, size }
+  }
+
+  async listCache() {
+    const list = await this._store.list()
+    return list ? list.sort((a, b) => b.size - a.size) : null
+  }
+
+  async clearCache(key) {
     for (const ctx of this._contexts.values()) {
       const jar = await ctx._jar?.catch(() => null)
       await jar?._persisted
     }
-    return this._store.clear()
+    if (key == null) return this._store.clear()
+    const k = String(key)
+    const slash = k.indexOf("/")
+    return this._store.delete(k.slice(0, slash), k.slice(slash + 1))
   }
 }

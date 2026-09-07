@@ -228,6 +228,8 @@ export interface CacheAPI {
   read?(key: string): Uint8Array | ArrayBuffer | null | undefined | Promise<Uint8Array | ArrayBuffer | null | undefined>
   write?(key: string, bytes: Uint8Array): void | Promise<void>
   delete?(key: string): void | Promise<void>
+  /** Every stored file with its size, powering cacheStats() and listCache(). */
+  list?(): Array<{ key: string, size: number }> | Promise<Array<{ key: string, size: number }>>
   clear?(): void | Promise<void>
 }
 
@@ -287,5 +289,10 @@ export default class MinecraftAssets {
   export(options?: ExportOptions & { dir?: undefined }): Promise<Uint8Array>
   export(options: ExportOptions & { dir: string }): Promise<number>
 
-  clearCache(): Promise<void>
+  /** File count and total bytes of the cache. null when a cacheAPI has no list(). */
+  cacheStats(): Promise<{ files: number, size: number } | null>
+  /** Every cached file as { key, size }, biggest first. null when a cacheAPI has no list(). */
+  listCache(): Promise<Array<{ key: string, size: number }> | null>
+  /** Clears the whole cache, or just one file when passed its key. */
+  clearCache(key?: string): Promise<void>
 }

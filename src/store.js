@@ -26,6 +26,13 @@ function apiBackend(api) {
     async set(store, key, value) {
       await api.write?.(store + "/" + key, store === "meta" ? encoder.encode(JSON.stringify(value)) : value)
     },
+    async delete(store, key) {
+      await api.delete?.(store + "/" + key)
+    },
+    async list() {
+      const out = await api.list?.()
+      return out == null ? undefined : Array.from(out, f => ({ key: String(f.key), size: Number(f.size) || 0 }))
+    },
     async clear() {
       await api.clear?.()
     }
@@ -40,6 +47,8 @@ function builtinBackend(dir, maxSize) {
   return {
     get: async (store, key) => (await load()).get(store, key),
     set: async (store, key, value) => (await load()).set(store, key, value),
+    delete: async (store, key) => (await load()).delete(store, key),
+    list: async () => (await load()).list(),
     clear: async () => (await load()).clear()
   }
 }
@@ -49,6 +58,8 @@ export function createStore({ cacheAPI, cacheDir, cacheSize } = {}) {
   return {
     get: (store, key) => swallow(() => backend.get(store, key)),
     set: (store, key, value) => swallow(() => backend.set(store, key, value)),
+    delete: (store, key) => swallow(() => backend.delete(store, key)),
+    list: async () => (await swallow(() => backend.list())) ?? null,
     clear: () => swallow(() => backend.clear())
   }
 }
