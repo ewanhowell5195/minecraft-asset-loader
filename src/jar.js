@@ -1,5 +1,6 @@
-import { findEocd, parseEocd, parseCentralDirectory, rawFromBuffer, decodeEntry, inflateRaw, deflateRaw } from "./zip.js"
-import { encoder, pool, memo } from "./util.js"
+import { findEocd, parseEocd, parseCentralDirectory, rawFromBuffer, inflateRaw, deflateRaw } from "./zip.js"
+import { ZipSource } from "./source.js"
+import { encoder, pool, readBody } from "./util.js"
 
 const TAIL_PROBE = 65536
 const LOCAL_PAD = 4096
@@ -15,19 +16,11 @@ export function isData(path, legacyLayout) {
   return path === "pack.png" || path === "pack.mcmeta" || path === "version.json"
 }
 
-export class Jar {
-  constructor({ url, size, sha1, legacyLayout, request, store }) {
-    this.url = url
-    this.size = size
-    this.sha1 = sha1
-    this.legacyLayout = legacyLayout
-    this.request = request
-    this.store = store
-    this._listing = null
-    this._buffer = null
-    this._persisted = null
-    this._progress = null
-    this._reads = new Map()
+export class Jar extends ZipSource {
+  constructor(options) {
+    super(options)
+    this.sha1 = options.sha1
+    this.legacyLayout = options.legacyLayout
   }
 
   get metaKey() { return "jar_" + this.sha1 }
@@ -36,28 +29,10 @@ export class Jar {
   async _range(start, end, tick) {
     const res = await this.request(this.url, { headers: { Range: `bytes=${start}-${end - 1}` } })
     const wanted = end - start
-    if (res.status === 206 && tick && res.body) {
-      const out = new Uint8Array(wanted)
-      const reader = res.body.getReader()
-      let at = 0
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        out.set(value, at)
-        at += value.length
-        tick(value.length)
-      }
-      if (at === wanted) return out
-      throw new Error(`Ranged request refused (206, ${at} bytes for ${wanted}) by ${this.url}`)
-    }
-    const bytes = new Uint8Array(await res.arrayBuffer())
+    const bytes = tick && res.body ? await readBody(res, tick, wanted) : new Uint8Array(await res.arrayBuffer())
     if (res.status !== 206 || bytes.length !== wanted) throw new Error(`Ranged request refused (${res.status}, ${bytes.length} bytes for ${wanted}) by ${this.url}`)
-    tick?.(wanted)
+    if (tick && !res.body) tick(wanted)
     return bytes
-  }
-
-  listing() {
-    return memo(this, "_listing", () => this._loadListing())
   }
 
   async _loadListing() {
@@ -110,10 +85,6 @@ export class Jar {
     return this._listingFromZip({ ...eocd, entries: parseCentralDirectory(cd) })
   }
 
-  buffer() {
-    return memo(this, "_buffer", () => this._loadBuffer())
-  }
-
   async _loadBuffer() {
     const packed = await this.store.get("blobs", this.blobKey)
     if (packed) {
@@ -141,20 +112,6 @@ export class Jar {
     chunks.sort((a, b) => a.start - b.start)
     this._persisted = this._persist(chunks)
     return chunks
-  }
-
-  async load(onProgress) {
-    this._progress = onProgress
-    try {
-      await this.listing()
-      const chunks = await this.buffer()
-      if (onProgress) {
-        const total = chunks.reduce((n, c) => n + c.bytes.length, 0)
-        onProgress(total, total)
-      }
-    } finally {
-      this._progress = null
-    }
   }
 
   _compact(buf) {
@@ -187,21 +144,6 @@ export class Jar {
     const chunks = await this.buffer()
     const chunk = chunks.findLast(c => c.start <= entry.offset)
     return { entry, data: rawFromBuffer(chunk.bytes, { ...entry, offset: entry.offset - chunk.start }) }
-  }
-
-  async extract(path) {
-    const hit = await this.raw(path)
-    return hit ? decodeEntry(hit.data, hit.entry) : null
-  }
-
-  read(path) {
-    let p = this._reads.get(path)
-    if (!p) {
-      p = this.extract(path)
-      this._reads.set(path, p)
-      p.catch(() => { if (this._reads.get(path) === p) this._reads.delete(path) })
-    }
-    return p
   }
 }
 

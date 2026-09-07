@@ -39,6 +39,53 @@ export function memo(obj, key, factory) {
   return p
 }
 
+export function memoMap(map, key, factory) {
+  let p = map.get(key)
+  if (!p) {
+    p = Promise.resolve().then(factory)
+    map.set(key, p)
+    p.catch(() => { if (map.get(key) === p) map.delete(key) })
+  }
+  return p
+}
+
+export async function readBody(res, tick, expected) {
+  if (!res.body) {
+    const bytes = new Uint8Array(await res.arrayBuffer())
+    tick?.(bytes.length)
+    return bytes
+  }
+  const reader = res.body.getReader()
+  if (expected != null) {
+    const out = new Uint8Array(expected)
+    let at = 0
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      out.set(value, at)
+      at += value.length
+      tick?.(value.length)
+    }
+    return at === expected ? out : out.subarray(0, at)
+  }
+  const parts = []
+  let size = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    parts.push(value)
+    size += value.length
+    tick?.(value.length)
+  }
+  const out = new Uint8Array(size)
+  let at = 0
+  for (const part of parts) {
+    out.set(part, at)
+    at += part.length
+  }
+  return out
+}
+
 export function define(obj, name, value) {
   Object.defineProperty(obj, name, { value, enumerable: false, configurable: true, writable: true })
 }

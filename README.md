@@ -9,6 +9,7 @@ Fetch anything from any Minecraft: Java Edition version ever released, in Node.j
 ## Features
 
 * Every version Mojang has published, from the earliest alphas to the latest snapshot
+* Bedrock Edition support, served from the official bedrock-samples releases
 * Textures, models, blockstates, item definitions, sounds, structures, and languages
 * Both resource pack and data pack assets included
 * Search and filter files, with the best matches sorted first
@@ -67,6 +68,7 @@ All options are optional:
 
 | Option | Default | Description |
 |---|---|---|
+| `type` | `"java"` | The edition: `"java"`, or `"bedrock"`. See [Bedrock edition](#bedrock-edition) |
 | `version` | `"release"` | The default version: an id, `"release"`, `"snapshot"`, or `"newest"` |
 | `objects` | `false` | Include [asset objects](#asset-objects) in listings and reads by default |
 | `cacheDir` | OS temp folder | Where the built-in cache lives (Node.js) |
@@ -350,6 +352,38 @@ const assets = new MinecraftAssets({
 ```
 
 A string is used as a prefix on every request. A function can be used for more advanced URLs, or to proxy specific URLs only. Returning `false` requests the original URL directly, without the proxy.
+
+### Bedrock edition
+
+Pass `type: "bedrock"` to serve Bedrock Edition instead, from Mojang's official [bedrock-samples](https://github.com/Mojang/bedrock-samples) releases:
+
+```js
+const assets = new MinecraftAssets({ type: "bedrock" })
+
+await assets.getTexture("blocks/stone")
+await assets.getModel("entity/allay")
+await assets.getLang("en_US")
+```
+
+Versions come from the GitHub releases, and previews are the `"snapshot"` channel. The GitHub API is touched as little as possible to try and avoid the strict rate limits.
+
+Each version is a single zip. It is downloaded whole on first use, cached, and everything is served from it. The first touch of a version costs the full download (roughly 150 MB) and everything after is instant. `loadJar` forces the download with byte progress, though `total` can be `null` when the server does not declare a length.
+
+The getters map to Bedrock's own layout:
+
+| Method | Reads from |
+|---|---|
+| `.getTexture(id, options?)` | `resource_pack/textures/`, `.png` with a `.tga` fallback. `meta: true` returns the `.texture_set.json` sidecar |
+| `.getModel(id, options?)` | `resource_pack/models/`, `.geo.json` with a `.json` fallback |
+| `.getBlockstate(id, options?)` | `behavior_pack/blocks/` |
+| `.getItemDefinition(id, options?)` | `behavior_pack/items/` |
+| `.getSound(id, options?)` | `resource_pack/sounds/`, `.fsb` with an `.ogg` fallback |
+| `.getLang(code, options?)` | `resource_pack/texts/` |
+| `.getStructure(id, options?)` | Nothing. `bedrock-samples` ships no structure files, so this is always `null` |
+
+Bedrock has no namespaces: a `minecraft:` prefix is accepted and stripped, and any other namespace is a miss. There are no [asset objects](#asset-objects) in bedrock, so the `objects` flag is ignored and `loadObjects` givs you nothing.
+
+In a browser, the zip hosts send no CORS headers, so bedrock mode needs the [proxy](#browser) for content. The version list needs no proxy.
 
 ### Module exports
 

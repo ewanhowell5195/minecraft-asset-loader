@@ -146,7 +146,7 @@ export interface FolderListing {
 }
 
 export interface GetterOptions extends VersionOptions {
-  /** The default namespace when the id carries no prefix. Default "minecraft". */
+  /** The default namespace when the id carries no prefix. Default "minecraft". Bedrock has no namespaces, so anything but "minecraft" is a miss there. */
   namespace?: string
 }
 
@@ -209,7 +209,7 @@ export interface ManifestVersion extends ManifestRow {
   getSound(id: string, options?: Omit<GetterOptions, "version">): Promise<Uint8Array | null>
   getStructure(id: string, options?: Omit<GetterOptions, "version">): Promise<Uint8Array | null>
   getLang(code: string, options?: Omit<GetterOptions, "version">): Promise<Record<string, string> | null>
-  loadJar(options?: { onProgress?: (done: number, total: number) => void }): Promise<void>
+  loadJar(options?: { onProgress?: (done: number, total: number | null) => void }): Promise<void>
   loadObjects(options?: Omit<LoadObjectsOptions, "version">): Promise<Map<string, Uint8Array>>
   export(options?: Omit<ExportOptions, "version"> & { dir?: undefined }): Promise<Uint8Array>
   export(options: Omit<ExportOptions, "version"> & { dir: string }): Promise<number>
@@ -243,6 +243,8 @@ export interface CacheAPI {
 }
 
 export interface MinecraftAssetsOptions {
+  /** Which edition to serve: "java" (default) from Mojang's version servers, or "bedrock" from the bedrock-samples releases. */
+  type?: "java" | "bedrock"
   /** Where the built-in cache lives (Node). Default: an OS temp location. */
   cacheDir?: string
   /** Byte cap on the built-in cache, LRU. Default 1 GB; `Infinity` or `null` disables eviction. */
@@ -292,8 +294,8 @@ export default class MinecraftAssets {
   getStructure(id: string, options?: GetterOptions): Promise<Uint8Array | null>
   getLang(code: string, options?: GetterOptions): Promise<Record<string, string> | null>
 
-  /** Downloads the version's jar data now, with byte progress, instead of waiting for the first read. */
-  loadJar(options?: VersionOptions & { onProgress?: (done: number, total: number) => void }): Promise<void>
+  /** Downloads the version's data now, with byte progress, instead of waiting for the first read. total is null when the server declares no length. */
+  loadJar(options?: VersionOptions & { onProgress?: (done: number, total: number | null) => void }): Promise<void>
   loadObjects(options?: LoadObjectsOptions): Promise<Map<string, Uint8Array>>
   export(options?: ExportOptions & { dir?: undefined }): Promise<Uint8Array>
   export(options: ExportOptions & { dir: string }): Promise<number>

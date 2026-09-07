@@ -1,6 +1,7 @@
-import { isNode, hashFromUrl, define } from "./util.js"
+import { isNode, hashFromUrl, define, memoMap } from "./util.js"
 
 export const MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
+const BEDROCK_RELEASES = "https://api.github.com/repos/Mojang/bedrock-samples/releases"
 export const LEGACY_ASSETS_BEFORE = Date.parse("2013-06-13T15:32:23+00:00")
 const DEFAULT_TTL = 10 * 60 * 1000
 
@@ -85,12 +86,16 @@ export class Manifest {
     if (manifest != null) this._adopt(manifest)
   }
 
+  get _cacheKey() {
+    return this.mc._type === "bedrock" ? "bedrock_manifest" : "manifest"
+  }
+
   async _current() {
     if (this._owned) return this._state
     if (this._state && Date.now() < this._expiresAt) return this._state
     let cached
     if (!this._state && isNode) {
-      cached = await this.mc._store.get("meta", "manifest")
+      cached = await this.mc._store.get("meta", this._cacheKey)
       if (!(cached?.json?.versions && typeof cached.time === "number")) cached = undefined
       else if (Date.now() < cached.time + this._effectiveTtl(cached.ttl)) {
         this._state = this._build(cached.json)
@@ -121,15 +126,44 @@ export class Manifest {
   }
 
   async _fetch() {
-    const res = await this.mc._request(MANIFEST_URL)
-    const json = await res.json()
+    const { json, headers } = this.mc._type === "bedrock" ? await this._fetchBedrock() : await this._fetchJava()
     const state = this._build(json)
-    const headerTtl = ttlFromHeaders(res.headers)
+    const headerTtl = ttlFromHeaders(headers)
     this._state = state
     this._owned = false
     this._expiresAt = Date.now() + this._effectiveTtl(headerTtl)
-    if (isNode) await this.mc._store.set("meta", "manifest", { time: Date.now(), ttl: headerTtl, json })
+    if (isNode) await this.mc._store.set("meta", this._cacheKey, { time: Date.now(), ttl: headerTtl, json })
     return state
+  }
+
+  async _fetchJava() {
+    const res = await this.mc._request(MANIFEST_URL)
+    return { json: await res.json(), headers: res.headers }
+  }
+
+  async _fetchBedrock() {
+    const versions = []
+    let headers
+    let page = 1
+    while (true) {
+      const res = await this.mc._request(`${BEDROCK_RELEASES}?per_page=100&page=${page++}`)
+      const batch = await res.json()
+      for (const r of batch) {
+        const asset = r.assets?.find(a => a.name.endsWith("-full.zip"))
+        versions.push({
+          id: r.tag_name.replace(/^v/, ""),
+          type: r.prerelease ? "snapshot" : "release",
+          releaseTime: r.published_at,
+          tag: r.tag_name,
+          zip: asset
+            ? { url: asset.browser_download_url, size: asset.size }
+            : { url: `https://github.com/Mojang/bedrock-samples/archive/refs/tags/${r.tag_name}.zip`, size: null, archive: true }
+        })
+      }
+      headers = res.headers
+      if (batch.length < 100) break
+    }
+    return { json: { versions }, headers }
   }
 
   _adopt(json) {
@@ -222,21 +256,16 @@ export class Manifest {
   async details(version) {
     const entry = await this.resolve(version)
     const key = versionKey(entry)
-    let p = this._details.get(key)
-    if (!p) {
-      p = this._fetchDetails(entry, key)
-      this._details.set(key, p)
-      p.catch(() => { if (this._details.get(key) === p) this._details.delete(key) })
-    }
-    return p
+    return memoMap(this._details, key, () => this._fetchDetails(entry, key))
   }
 
   async _fetchDetails(entry, key) {
     const store = this.mc._store
-    const cacheKey = "details_" + key
+    const bedrock = this.mc._type === "bedrock"
+    const cacheKey = (bedrock ? "bedrock_details_" : "details_") + key
     const cached = await store.get("meta", cacheKey)
     if (cached && typeof cached === "object") return cached
-    const res = await this.mc._request(entry.url)
+    const res = await this.mc._request(bedrock ? `${BEDROCK_RELEASES}/tags/${entry.tag}` : entry.url)
     const json = await res.json()
     await store.set("meta", cacheKey, json)
     return json

@@ -4,7 +4,7 @@ import { VersionContext } from "./version.js"
 import { createStore } from "./store.js"
 import { objectUrl } from "./objects.js"
 import { buildZip, packEntry, decodeEntry, readZip, writeZip } from "./zip.js"
-import { isNode, decoder, pool, pathFilter, define } from "./util.js"
+import { isNode, decoder, pool, pathFilter, define, memoMap } from "./util.js"
 
 export { VersionType, LEGACY_ASSETS_BEFORE, readZip, writeZip }
 
@@ -47,10 +47,32 @@ function parseLang(text) {
   return out
 }
 
+function bedrockId(id, namespace) {
+  if (namespace != null && namespace !== "minecraft") return null
+  let p = String(id).trim().replace(/\\/g, "/").replace(/^\/+/, "")
+  const colon = p.indexOf(":")
+  if (colon >= 0 && !p.slice(0, colon).includes("/")) {
+    if (p.slice(0, colon) !== "minecraft") return null
+    p = p.slice(colon + 1)
+  }
+  return p
+}
+
+function bedrockPaths(p, base, kind, exts) {
+  if (p == null) return []
+  if (p.startsWith("resource_pack/") || p.startsWith("behavior_pack/")) return [p]
+  if (p.startsWith(kind + "/")) p = p.slice(kind.length + 1)
+  const lower = p.toLowerCase()
+  if (exts.some(e => lower.endsWith(e))) return [`${base}/${kind}/${p}`]
+  return exts.map(e => `${base}/${kind}/${p}${e}`)
+}
+
 const isEntry = x => x != null && typeof x === "object" && typeof x.path === "string"
 
 export default class MinecraftAssets {
-  constructor({ cacheDir, cacheSize, cacheAPI, proxy, version, manifest, manifestExpiry, objects } = {}) {
+  constructor({ type = "java", cacheDir, cacheSize, cacheAPI, proxy, version, manifest, manifestExpiry, objects } = {}) {
+    if (type !== "java" && type !== "bedrock") throw new TypeError(`Unknown type "${type}"`)
+    this._type = type
     this._version = version ?? "release"
     this._objects = !!objects
     this._proxy = proxy
@@ -87,13 +109,7 @@ export default class MinecraftAssets {
   }
 
   _readObject(hash) {
-    let p = this._objectReads.get(hash)
-    if (!p) {
-      p = this._fetchObject(hash)
-      this._objectReads.set(hash, p)
-      p.catch(() => { if (this._objectReads.get(hash) === p) this._objectReads.delete(hash) })
-    }
-    return p
+    return memoMap(this._objectReads, hash, () => this._fetchObject(hash))
   }
 
   get version() {
@@ -204,8 +220,23 @@ export default class MinecraftAssets {
     return ctx.read(normalisePath(path), objects ?? this._objects, prefer)
   }
 
+  async _readFirst(ctx, candidates) {
+    for (const path of candidates) {
+      const bytes = await ctx.read(path, false)
+      if (bytes) return { path, bytes }
+    }
+    return null
+  }
+
   async getTexture(id, { version, meta, prefer, namespace } = {}) {
     const ctx = await this._ctx(version)
+    if (this._type === "bedrock") {
+      const hit = await this._readFirst(ctx, bedrockPaths(bedrockId(id, namespace), "resource_pack", "textures", [".png", ".tga"]))
+      if (!hit) return null
+      if (!meta) return hit.bytes
+      const raw = await ctx.read(hit.path.replace(/\.(png|tga)$/i, "") + ".texture_set.json", false)
+      return { data: hit.bytes, meta: raw ? JSON.parse(decoder.decode(raw)) : null }
+    }
     const path = assetPath(id, "textures", ".png", namespace)
     const data = await ctx.read(path, this._objects, prefer)
     if (!data) return null
@@ -214,25 +245,30 @@ export default class MinecraftAssets {
     return { data, meta: raw ? JSON.parse(decoder.decode(raw)) : null }
   }
 
-  async _json(id, kind, { version, namespace } = {}) {
+  async _json(id, kind, { version, namespace } = {}, bedrock) {
     const ctx = await this._ctx(version)
+    if (this._type === "bedrock") {
+      const hit = await this._readFirst(ctx, bedrockPaths(bedrockId(id, namespace), bedrock.base, bedrock.kind, bedrock.exts))
+      return hit ? JSON.parse(decoder.decode(hit.bytes)) : null
+    }
     const bytes = await ctx.read(assetPath(id, kind, ".json", namespace), this._objects)
     return bytes ? JSON.parse(decoder.decode(bytes)) : null
   }
 
   getModel(id, options) {
-    return this._json(id, "models", options)
+    return this._json(id, "models", options, { base: "resource_pack", kind: "models", exts: [".geo.json", ".json"] })
   }
 
   getBlockstate(id, options) {
-    return this._json(id, "blockstates", options)
+    return this._json(id, "blockstates", options, { base: "behavior_pack", kind: "blocks", exts: [".block.json", ".json"] })
   }
 
   getItemDefinition(id, options) {
-    return this._json(id, "items", options)
+    return this._json(id, "items", options, { base: "behavior_pack", kind: "items", exts: [".json"] })
   }
 
   async getStructure(id, { version, namespace } = {}) {
+    if (this._type === "bedrock") return null
     const ctx = await this._ctx(version)
     let p = String(id).trim().replace(/\\/g, "/").replace(/^\/+/, "")
     if (!p.toLowerCase().endsWith(".nbt")) p += ".nbt"
@@ -253,11 +289,28 @@ export default class MinecraftAssets {
 
   async getSound(id, { version, namespace } = {}) {
     const ctx = await this._ctx(version)
+    if (this._type === "bedrock") {
+      const hit = await this._readFirst(ctx, bedrockPaths(bedrockId(id, namespace), "resource_pack", "sounds", [".fsb", ".ogg"]))
+      return hit ? hit.bytes : null
+    }
     return ctx.read(assetPath(id, "sounds", ".ogg", namespace), true)
+  }
+
+  async _bedrockLang(ctx, code, namespace) {
+    if (namespace != null && namespace !== "minecraft") return null
+    const { files } = await ctx.listing(false)
+    const want = nameOf(String(code).replace(/\\/g, "/")).replace(/\.lang$/i, "").toLowerCase()
+    for (const f of files) {
+      if (!f.path.startsWith("resource_pack/texts/")) continue
+      const m = /^([^/]*)\.lang$/i.exec(f.path.slice("resource_pack/texts/".length))
+      if (m && m[1].toLowerCase() === want) return parseLang(decoder.decode(await f.read()))
+    }
+    return null
   }
 
   async getLang(code, { version, namespace = "minecraft" } = {}) {
     const ctx = await this._ctx(version)
+    if (this._type === "bedrock") return this._bedrockLang(ctx, code, namespace)
     const { files } = await ctx.listing(true)
     let c = String(code).replace(/\\/g, "/")
     const colon = c.indexOf(":")

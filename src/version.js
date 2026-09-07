@@ -1,6 +1,7 @@
 import { Jar } from "./jar.js"
+import { BedrockZip } from "./bedrock.js"
 import { rootIndex } from "./objects.js"
-import { hashFromUrl, collator, memo, define } from "./util.js"
+import { hashFromUrl, collator, memo, memoMap, define } from "./util.js"
 import { versionKey } from "./manifest.js"
 
 export class VersionContext {
@@ -20,6 +21,18 @@ export class VersionContext {
 
   jar() {
     return memo(this, "_jar", async () => {
+      if (this.mc._type === "bedrock") {
+        const zip = this.entry.zip
+        if (!zip?.url) throw new Error(`Version "${this.entry.id}" has no download`)
+        return new BedrockZip({
+          url: zip.url,
+          size: zip.size,
+          archive: zip.archive,
+          key: this.entry.tag ?? this.entry.id,
+          request: (url, init) => this.mc._request(url, init),
+          store: this.mc._store
+        })
+      }
       const d = await this.details()
       const client = d.downloads?.client
       if (!client?.url) throw new Error(`Version "${this.entry.id}" has no client jar`)
@@ -36,6 +49,7 @@ export class VersionContext {
 
   index() {
     return memo(this, "_index", async () => {
+      if (this.mc._type === "bedrock") return null
       const d = await this.details()
       const url = d.assetIndex?.url
       if (!url) return null
@@ -51,14 +65,9 @@ export class VersionContext {
   }
 
   listing(objects) {
+    if (this.mc._type === "bedrock") objects = false
     const key = objects ? "on" : "off"
-    let p = this._listings.get(key)
-    if (!p) {
-      p = this._buildListing(!!objects)
-      this._listings.set(key, p)
-      p.catch(() => { if (this._listings.get(key) === p) this._listings.delete(key) })
-    }
-    return p
+    return memoMap(this._listings, key, () => this._buildListing(!!objects))
   }
 
   async _buildListing(objects) {
