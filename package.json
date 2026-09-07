@@ -1,0 +1,54 @@
+{
+  "name": "minecraft-asset-loader",
+  "version": "0.1.0",
+  "description": "Fetch anything from any Minecraft: Java Edition version, in Node and the browser, touching the network as little as possible",
+  "author": "Ewan Howell <ewanhowell5195>",
+  "license": "MPL-2.0",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "browser": "./dist/minecraft-asset-loader.min.js",
+      "default": "./src/index.js"
+    }
+  },
+  "browser": {
+    "./src/cache.js": false,
+    "./src/zlib-node.js": false
+  },
+  "files": [
+    "src",
+    "dist",
+    "index.d.ts",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ewanhowell5195/minecraft-asset-loader.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ewanhowell5195/minecraft-asset-loader/issues"
+  },
+  "scripts": {
+    "test": "node --test",
+    "build": "esbuild src/index.js --bundle --minify --format=esm --platform=browser --external:node:* --outfile=dist/minecraft-asset-loader.min.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "keywords": [
+    "minecraft",
+    "assets",
+    "textures",
+    "resource pack",
+    "mojang"
+  ],
+  "dependencies": {
+    "path-search-sort": "^1.2.0"
+  }
+}
