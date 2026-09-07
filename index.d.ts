@@ -58,6 +58,8 @@ export function writeZip(
   options?: {
     /** false stores everything uncompressed, faster for already-compressed files. Default true. */
     compress?: boolean
+    /** How many files pack at once. Default 32. */
+    concurrency?: number
     onProgress?: (done: number, total: number) => void
   }
 ): Promise<Uint8Array>

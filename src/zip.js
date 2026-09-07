@@ -214,13 +214,13 @@ export function readZip(bytes) {
   })
 }
 
-export async function writeZip(files, { compress = true, onProgress } = {}) {
+export async function writeZip(files, { compress = true, concurrency = 32, onProgress } = {}) {
   const list = files instanceof Map ? [...files]
     : Array.isArray(files) ? files.map(f => [f.path, f])
     : Object.entries(files)
   const items = new Array(list.length)
   let done = 0
-  await pool(list, 8, async ([path, data], i) => {
+  await pool(list, concurrency, async ([path, data], i) => {
     items[i] = await packEntry(path, data instanceof Uint8Array ? data : await data.read(), compress)
     onProgress?.(++done, list.length)
   })

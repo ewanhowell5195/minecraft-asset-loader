@@ -363,7 +363,7 @@ import MinecraftAssets, { VersionType, LEGACY_ASSETS_BEFORE, readZip, writeZip }
 | `VersionType` | The [filter keywords](#filters) |
 | `LEGACY_ASSETS_BEFORE` | The 13w24a timestamp, marking which jars use the [legacy layout](#version-entries) |
 | `readZip(bytes)` | The library's zip reader. Parses any zip into `{ path, size, crc }` entries with a `read()` method, decompressing nothing until an entry is read |
-| `writeZip(files, options?)` | The library's zip writer. Takes a `Map` or plain object of path to bytes, or an array of entries with `read()`, so a `readZip` result or the library's own [file entries](#file-entries) repack directly. `compress: false` stores everything uncompressed, and `onProgress` is called with `(done, total)` as files pack |
+| `writeZip(files, options?)` | The library's zip writer. Takes a `Map` or plain object of path to bytes, or an array of entries with `read()`, so a `readZip` result or the library's own [file entries](#file-entries) repack directly |
 
 ```js
 const entries = readZip(bytes)                    // [{ path, size, crc }], each with read()
@@ -372,6 +372,14 @@ const icon = await entries.find(e => e.path === "pack.png").read()
 const zip = await writeZip({ "pack.mcmeta": mcmetaBytes, "pack.png": iconBytes })
 const textures = await writeZip(await assets.list("assets/minecraft/textures/block"))
 ```
+
+`writeZip` options:
+
+| Option | Default | Description |
+|---|---|---|
+| `compress` | `true` | `false` stores everything uncompressed, faster for already-compressed files |
+| `concurrency` | `32` | How many files can pack at once |
+| `onProgress` | | Called with `(done, total)` as each file finishes |
 
 ## License
 
