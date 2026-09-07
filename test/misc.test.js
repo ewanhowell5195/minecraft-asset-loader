@@ -138,6 +138,11 @@ test("readZip and writeZip: roundtrip, exports, file entries", async () => {
   assert.ok(raw.compression === null || raw.compression === "deflate-raw")
   assert.ok(raw.bytes instanceof Uint8Array)
 
+  const ticks = []
+  const stored = await writeZip({ "a.txt": new TextEncoder().encode("hello hello hello hello") }, { compress: false, onProgress: (done, total) => ticks.push([done, total]) })
+  assert.deepEqual(ticks, [[1, 1]], "progress counts packed files")
+  assert.equal((await readZip(stored)[0].raw()).compression, null, "compress: false stores everything")
+
   const exported = await mc.export({ filter: p => p.includes("note_block") })
   assert.equal(readZip(exported).length, 8, "reads the library's own exports")
 

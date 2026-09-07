@@ -53,7 +53,14 @@ export interface ZipEntry {
 export function readZip(bytes: Uint8Array | ArrayBuffer): ZipEntry[]
 
 /** Builds a zip from a Map or plain object of path to bytes, or an array of entries with read(). */
-export function writeZip(files: Map<string, Uint8Array> | Record<string, Uint8Array> | Array<{ path: string, read(): Uint8Array | Promise<Uint8Array> }>): Promise<Uint8Array>
+export function writeZip(
+  files: Map<string, Uint8Array> | Record<string, Uint8Array> | Array<{ path: string, read(): Uint8Array | Promise<Uint8Array> }>,
+  options?: {
+    /** false stores everything uncompressed, faster for already-compressed files. Default true. */
+    compress?: boolean
+    onProgress?: (done: number, total: number) => void
+  }
+): Promise<Uint8Array>
 
 /** The latest release, the newest snapshot, or whichever of the two is newer. */
 export type VersionKeyword = "release" | "snapshot" | "newest"

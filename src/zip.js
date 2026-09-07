@@ -189,11 +189,11 @@ export function buildZip(items) {
   return out
 }
 
-export async function packEntry(path, bytes) {
+export async function packEntry(path, bytes, compress = true) {
   const crc = crc32(bytes)
   let data = bytes
   let method = 0
-  if (bytes.length > 0) {
+  if (compress && bytes.length > 0) {
     const packed = await deflateRaw(bytes)
     if (packed.length < bytes.length) {
       data = packed
@@ -214,13 +214,15 @@ export function readZip(bytes) {
   })
 }
 
-export async function writeZip(files) {
+export async function writeZip(files, { compress = true, onProgress } = {}) {
   const list = files instanceof Map ? [...files]
     : Array.isArray(files) ? files.map(f => [f.path, f])
     : Object.entries(files)
   const items = new Array(list.length)
+  let done = 0
   await pool(list, 8, async ([path, data], i) => {
-    items[i] = await packEntry(path, data instanceof Uint8Array ? data : await data.read())
+    items[i] = await packEntry(path, data instanceof Uint8Array ? data : await data.read(), compress)
+    onProgress?.(++done, list.length)
   })
   return buildZip(items)
 }
