@@ -103,7 +103,7 @@ assets.channel   // "snapshot"
 
 Both `.version` and `.channel` read from the in-memory manifest, so they start `null` until a call has fetched it.
 
-#### Filters
+### Filters
 
 `versions()` takes a type keyword, a function, or an array of either. Arrays are combined, without duplicates. `VersionType` holds the keywords:
 
@@ -131,7 +131,7 @@ VersionType.RC = all => all.filter(v => v.id.includes("-rc"))
 await assets.manifest.versions(VersionType.RC)
 ```
 
-#### Version entries
+### Version entries
 
 A version entry contains the data for that version from the manifest, alongside version-scoped versions of the asset methods.
 
@@ -145,7 +145,7 @@ Supported methods are `details`, `list`, `search`, `file`, `read`, every getter,
 
 `legacyLayout` is a custom property set on versions. It is `true` for versions before 13w24a, where the jar had no `assets/` folder, and all assets sat within the root. The getters (except `.getLang()`) do not work on versions with the legacy asset layout, so use `.read()` instead. `LEGACY_ASSETS_BEFORE` is exported as the timestamp of that cutoff.
 
-#### Your own manifest
+### Your own manifest
 
 If you already fetch the manifest yourself, you can pass it in as `manifest` to the constructor. Use `assets.manifest.update(json)` to update it later with a newer version. When a manifest was provided by you, it will not expire and relies on you to keep it refreshed. `.update()` with no argument refetches from Mojang and hands control back to the library.
 
@@ -171,7 +171,7 @@ await assets.file("assets/minecraft/textures/block/stone.png")    // one entry, 
 await assets.read("data/minecraft/loot_table/blocks/stone.json")  // one file's bytes
 ```
 
-#### File entries
+### File entries
 
 Each file is `{ path, source, size, crc, hash }`. The `source` is where it came from: `"jar"` or `"object"`. `crc` is only there on jar files, and `hash` only on [asset objects](#asset-objects). File entries also get `read()` and `raw()` methods:
 
@@ -184,7 +184,7 @@ await stone.raw()   // the bytes as stored: { compression: "deflate-raw" | null,
 
 `raw()` skips decompression, for handing files to a worker or another zip cheaply. `readZip` entries have it too.
 
-#### Folder entries
+### Folder entries
 
 `folder.list()` can be used to list files from this folder instead of from the root. Same formatting as the main list method.
 
@@ -203,7 +203,7 @@ await textures.list("block")                           // every file beneath tex
 await textures.list("block", { folders: true })        // browse textures/block/
 ```
 
-#### Asset objects
+### Asset objects
 
 Sounds, languages, the panoramas, and a few other files are not stored in the jar. They are served individually from a separate host, by hash, listed in each version's asset index. They are big (around 480 MB combined for a modern version), and cost an extra fetch to list, so they are opt in. Pass `objects: true` to the constructor, or to any call:
 
@@ -314,7 +314,7 @@ await assets.loadJar({ version: "26.1.2", onProgress: (done, total) => {} })
 
 `assets.clearCache()` clears the full cache.
 
-#### Your own cache
+### Your own cache
 
 Pass `cacheAPI` to replace the built-in cache with anything that can store bytes:
 
