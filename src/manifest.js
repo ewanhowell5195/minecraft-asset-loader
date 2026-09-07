@@ -7,23 +7,25 @@ const DEFAULT_TTL = 10 * 60 * 1000
 
 const MAIN_EXTRA = ["1.20.4", "1.20.6", "1.21.3", "1.21.4", "1.21.5", "1.21.8", "1.21.10", "1.21.11"]
 
-const lineOf = id => {
+const lineOf = (id, bedrock) => {
+  if (bedrock) return id.split(".").slice(0, 3).join(".")
   const m = /^(\d+)\.(\d+)/.exec(id)
   return m ? m[1] + "." + m[2] : id
 }
 
 function main(all) {
+  const bedrock = all.some(v => v.zip)
   const releases = all.filter(v => v.type === "release")
   const keep = new Set()
   const lines = new Set()
   for (const v of releases) {
-    const line = lineOf(v.id)
+    const line = lineOf(v.id, bedrock)
     if (!lines.has(line)) {
       lines.add(line)
       keep.add(v)
     }
   }
-  for (const v of releases) if (MAIN_EXTRA.includes(v.id)) keep.add(v)
+  if (!bedrock) for (const v of releases) if (MAIN_EXTRA.includes(v.id)) keep.add(v)
   const snapshot = all.find(v => v.type === "snapshot")
   if (snapshot && (!releases[0] || Date.parse(snapshot.releaseTime) > Date.parse(releases[0].releaseTime))) keep.add(snapshot)
   return all.filter(v => keep.has(v))

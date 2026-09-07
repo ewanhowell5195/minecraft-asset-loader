@@ -38,6 +38,13 @@ test("manifest: releases become versions, previews are snapshots", async () => {
   await fresh.setVersion("snapshot")
   assert.equal(fresh.channel, "snapshot")
   assert.ok(fresh.version.includes("preview"))
+
+  const { VersionType } = await import("../src/index.js")
+  const main = await mc.manifest.versions(VersionType.MAIN)
+  assert.ok(main.length > 20 && main.length < all.length)
+  const lines = main.filter(v => v.type === "release").map(v => v.id.split(".").slice(0, 3).join("."))
+  assert.equal(new Set(lines).size, lines.length, "one entry per update line")
+  assert.ok(new Set(lines.map(l => l.split(".").slice(0, 2).join("."))).size < lines.length, "updates are finer than major.minor")
 })
 
 test("full zip: listing through the lens", async () => {
