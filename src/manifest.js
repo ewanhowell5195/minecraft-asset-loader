@@ -8,7 +8,10 @@ const DEFAULT_TTL = 10 * 60 * 1000
 const MAIN_EXTRA = ["1.20.4", "1.20.6", "1.21.3", "1.21.4", "1.21.5", "1.21.8", "1.21.10", "1.21.11"]
 
 const lineOf = (id, bedrock) => {
-  if (bedrock) return id.split(".").slice(0, 3).join(".")
+  if (bedrock) {
+    const [major, minor, patch] = id.split(".")
+    return `${major}.${minor}.${Math.floor((parseInt(patch) || 0) / 10) * 10}`
+  }
   const m = /^(\d+)\.(\d+)/.exec(id)
   return m ? m[1] + "." + m[2] : id
 }
