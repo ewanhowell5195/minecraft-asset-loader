@@ -1,4 +1,4 @@
-import { isNode, hashFromUrl, define, memoMap } from "./util.js"
+import { isNode, hashFromUrl, define, memoMap, pool } from "./util.js"
 
 export const MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 const BEDROCK_RELEASES = "https://api.github.com/repos/Mojang/bedrock-samples/releases"
@@ -118,7 +118,9 @@ export class Manifest {
   }
 
   get _cacheKey() {
-    return this.mc._type === "bedrock" ? "bedrock_manifest" : "manifest"
+    if (this.mc._type === "bedrock") return "bedrock_manifest"
+    if (this.mc._type === "assets") return "assets_manifest"
+    return "manifest"
   }
 
   async _current() {
@@ -164,7 +166,9 @@ export class Manifest {
   }
 
   async _fetch() {
-    const { json, headers } = this.mc._type === "bedrock" ? await this._fetchBedrock() : await this._fetchJava()
+    const { json, headers } = this.mc._type === "bedrock" ? await this._fetchBedrock()
+      : this.mc._type === "assets" ? await this._fetchAssets()
+      : await this._fetchJava()
     const state = this._build(json)
     const headerTtl = ttlFromHeaders(headers)
     this._state = state
@@ -202,6 +206,45 @@ export class Manifest {
       if (batch.length < 100) break
     }
     return { json: { versions }, headers }
+  }
+
+  async _fetchAssets() {
+    const res = await this.mc._request(MANIFEST_URL)
+    const json = await res.json()
+    const store = this.mc._store
+    const details = new Array(json.versions.length)
+    await pool(json.versions, 32, async (row, i) => {
+      const key = "details_" + hashFromUrl(row.url)
+      let d = await store.get("meta", key)
+      if (!d?.downloads) {
+        d = await (await this.mc._request(row.url)).json()
+        await store.set("meta", key, d)
+      }
+      details[i] = d
+    })
+    const byId = new Map()
+    for (let i = json.versions.length - 1; i >= 0; i--) {
+      const row = json.versions[i]
+      const index = details[i]?.assetIndex
+      if (!index) continue
+      const cur = byId.get(index.id)
+      if (!cur) {
+        byId.set(index.id, {
+          id: index.id,
+          type: row.type === "release" ? "release" : "snapshot",
+          releaseTime: row.releaseTime,
+          sha1: index.sha1,
+          url: index.url,
+          size: index.size,
+          totalSize: index.totalSize,
+          first: row.id
+        })
+      } else if (row.type === "release") {
+        cur.type = "release"
+      }
+    }
+    const versions = [...byId.values()].sort((a, b) => Date.parse(b.releaseTime) - Date.parse(a.releaseTime))
+    return { json: { versions }, headers: res.headers }
   }
 
   _adopt(json) {
@@ -292,11 +335,11 @@ export class Manifest {
 
   async _fetchDetails(entry, key) {
     const store = this.mc._store
-    const bedrock = this.mc._type === "bedrock"
-    const cacheKey = (bedrock ? "bedrock_details_" : "details_") + key
+    const type = this.mc._type
+    const cacheKey = (type === "bedrock" ? "bedrock_details_" : type === "assets" ? "index_" : "details_") + key
     const cached = await store.get("meta", cacheKey)
     if (cached && typeof cached === "object") return cached
-    const res = await this.mc._request(bedrock ? `${BEDROCK_RELEASES}/tags/${entry.tag}` : entry.url)
+    const res = await this.mc._request(type === "bedrock" ? `${BEDROCK_RELEASES}/tags/${entry.tag}` : entry.url)
     const json = await res.json()
     await store.set("meta", cacheKey, json)
     return json

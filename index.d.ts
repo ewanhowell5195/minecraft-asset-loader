@@ -243,8 +243,8 @@ export interface CacheAPI {
 }
 
 export interface MinecraftAssetsOptions {
-  /** Which edition to serve: "java" (default) from Mojang's version servers, or "bedrock" from the bedrock-samples releases. */
-  type?: "java" | "bedrock"
+  /** What to serve: "java" (default) from Mojang's version servers, "assets" for the Java asset indexes on their own (no jar), or "bedrock" from the bedrock-samples releases. */
+  type?: "java" | "assets" | "bedrock"
   /** Where the built-in cache lives (Node). Default: an OS temp location. */
   cacheDir?: string
   /** Byte cap on the built-in cache, LRU. Default 1 GB; `Infinity` or `null` disables eviction. */

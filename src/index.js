@@ -71,7 +71,7 @@ const isEntry = x => x != null && typeof x === "object" && typeof x.path === "st
 
 export default class MinecraftAssets {
   constructor({ type = "java", cacheDir, cacheSize, cacheKey, cacheAPI, proxy, version, manifest, manifestExpiry, objects } = {}) {
-    if (type !== "java" && type !== "bedrock") throw new TypeError(`Unknown type "${type}"`)
+    if (type !== "java" && type !== "assets" && type !== "bedrock") throw new TypeError(`Unknown type "${type}"`)
     this._type = type
     this._version = version ?? "release"
     this._objects = !!objects
@@ -341,6 +341,17 @@ export default class MinecraftAssets {
 
   async loadJar({ version, onProgress } = {}) {
     const ctx = await this._ctx(version)
+    if (this._type === "assets") {
+      const { files } = await ctx.listing(false)
+      const total = files.reduce((n, f) => n + f.size, 0)
+      let done = 0
+      onProgress?.(0, total)
+      await pool(files, 32, async f => {
+        try { await this._fetchObject(f.hash) } catch {}
+        onProgress?.(done += f.size, total)
+      })
+      return
+    }
     const jar = await ctx.jar()
     ctx.listing(this._objects).catch(() => {})
     await jar.load(onProgress)
@@ -369,8 +380,8 @@ export default class MinecraftAssets {
     const { files } = await ctx.listing(objects ?? this._objects)
     const keep = pathFilter(filter)
     const wanted = files.filter(f => keep(f.path))
-    const jar = await ctx.jar()
-    if (wanted.some(f => f.source === "jar")) await jar.buffer()
+    const jar = wanted.some(f => f.source === "jar") ? await ctx.jar() : null
+    if (jar) await jar.buffer()
     let done = 0
     const tick = () => onProgress?.(++done, wanted.length)
 

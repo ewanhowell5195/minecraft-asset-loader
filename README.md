@@ -10,6 +10,7 @@ Fetch anything from any Minecraft: Java Edition version ever released, in Node.j
 
 * Every version Mojang has published, from the earliest alphas to the latest snapshot
 * Bedrock Edition support, served from the official bedrock-samples releases
+* An asset index mode, serving the Java asset indexes as standalone versions
 * Textures, models, blockstates, item definitions, sounds, structures, and languages
 * Both resource pack and data pack assets included
 * Search and filter files, with the best matches sorted first
@@ -68,7 +69,7 @@ All options are optional:
 
 | Option | Default | Description |
 |---|---|---|
-| `type` | `"java"` | The edition: `"java"`, or `"bedrock"`. See [Bedrock edition](#bedrock-edition) |
+| `type` | `"java"` | What to serve: `"java"`, `"assets"`, or `"bedrock"`. See [Asset index mode](#asset-index-mode) and [Bedrock edition](#bedrock-edition) |
 | `version` | `"release"` | The default version: an id, `"release"`, `"snapshot"`, or `"newest"` |
 | `objects` | `false` | Include [asset objects](#asset-objects) in listings and reads by default |
 | `cacheDir` | OS temp folder | Where the built-in cache lives (Node.js) |
@@ -353,6 +354,24 @@ const assets = new MinecraftAssets({
 ```
 
 A string is used as a prefix on every request. A function can be used for more advanced URLs, or to proxy specific URLs only. Returning `false` requests the original URL directly, without the proxy.
+
+### Asset index mode
+
+Pass `type: "assets"` to serve the Java [asset indexes](#asset-objects) on their own. The version list becomes the asset index versions instead of the game versions, and content is just the files in the index, with no jar involved:
+
+```js
+const assets = new MinecraftAssets({ type: "assets" })
+
+await assets.manifest.versions()          // one entry per asset index: "34", "1.19", "legacy", "pre-1.6", ...
+await assets.getSound("note/pling")
+await assets.getLang("de_de")
+```
+
+Many game versions share one index, so the list is short (around 56 entries). Each entry keeps the index's own metadata: `sha1`, `url`, `size`, `totalSize` (the combined size of every file it points at), and `first`, the game version that introduced it. An index counts as `"release"` when any release uses it, and `"snapshot"` when only snapshots do. Building the list means fetching every game version's details once, so the first call takes a moment; after that it is all cached.
+
+Everything works from the index's own file list: `list`, `search`, `read`, `export`, and the getters. All entries are object-backed, so the `objects` flag is ignored. What resolves is whatever the index actually holds, which is sounds and non-English translations on modern indexes (everything else lives in the jar), plus icons, music, and `.lang` files on the older ones. `getTexture`, `getModel`, `getBlockstate`, `getItemDefinition`, and `getStructure` are usually `null` since that content never left the jar. `loadJar` prefetches every file in the index with byte progress.
+
+In a browser this mode needs the [proxy](#browser) for content, since everything comes from the asset objects host.
 
 ### Bedrock edition
 

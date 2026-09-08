@@ -25,6 +25,7 @@ export class VersionContext {
   }
 
   async _openJar() {
+    if (this.mc._type === "assets") throw new Error("Asset index versions have no jar")
     if (this.mc._type === "bedrock") {
       const zip = this.entry.zip
       if (!zip?.url) throw new Error(`Version "${this.entry.id}" has no download`)
@@ -53,11 +54,11 @@ export class VersionContext {
   index() {
     return memo(this, "_index", async () => {
       if (this.mc._type === "bedrock") return null
-      const d = await this.details()
-      const url = d.assetIndex?.url
+      const meta = this.mc._type === "assets" ? this.entry : (await this.details()).assetIndex
+      const url = meta?.url
       if (!url) return null
       const store = this.mc._store
-      const key = "index_" + (d.assetIndex.sha1 ?? hashFromUrl(url))
+      const key = "index_" + (meta.sha1 ?? hashFromUrl(url))
       let json = await store.get("meta", key)
       if (!json?.objects) {
         json = await (await this.mc._request(url)).json()
@@ -68,12 +69,20 @@ export class VersionContext {
   }
 
   listing(objects) {
-    if (this.mc._type === "bedrock") objects = false
+    if (this.mc._type !== "java") objects = false
     const key = objects ? "on" : "off"
     return memoMap(this._listings, key, () => this._buildListing(!!objects))
   }
 
   async _buildListing(objects) {
+    if (this.mc._type === "assets") {
+      const index = await this.index()
+      const byPath = new Map()
+      for (const [path, obj] of index) byPath.set(path, this._fileEntry(path, null, obj))
+      const files = Object.freeze([...byPath.values()].sort((a, b) => collator.compare(a.path, b.path)))
+      let paths
+      return { files, byPath, get paths() { return paths ??= Object.freeze(files.map(f => f.path)) } }
+    }
     const jar = await this.jar()
     const [listing, index] = await Promise.all([jar.listing(), objects ? this.index() : null])
     if (!listing.sorted && listing.sorting) await listing.sorting
