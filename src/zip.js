@@ -1,4 +1,7 @@
 import { isNode, encoder, decoder, define, pool } from "./util.js"
+import { inflateSync } from "./inflate.js"
+
+const INLINE_INFLATE_MAX = 1 << 20
 
 export const SIG_LOCAL = 0x04034b50
 export const SIG_CENTRAL = 0x02014b50
@@ -12,8 +15,10 @@ let nodeZlib
 const zlib = () => nodeZlib ??= import("./zlib-node.js")
 
 async function transform(bytes, stream) {
-  const out = new Blob([bytes]).stream().pipeThrough(stream)
-  return new Uint8Array(await new Response(out).arrayBuffer())
+  const writer = stream.writable.getWriter()
+  writer.write(bytes).catch(() => {})
+  writer.close().catch(() => {})
+  return new Uint8Array(await new Response(stream.readable).arrayBuffer())
 }
 
 export async function inflateRaw(bytes) {
@@ -119,8 +124,13 @@ export function rawFromBuffer(buf, entry) {
   return buf.subarray(at, at + entry.compressedSize)
 }
 
+export function decodeEntrySync(raw, entry) {
+  if (entry.method === 0) return raw.slice()
+  return entry.size <= INLINE_INFLATE_MAX ? inflateSync(raw, entry.size) : null
+}
+
 export async function decodeEntry(raw, entry) {
-  return entry.method === 0 ? raw.slice() : inflateRaw(raw)
+  return decodeEntrySync(raw, entry) ?? inflateRaw(raw)
 }
 
 export function entryFromBuffer(buf, entry) {
