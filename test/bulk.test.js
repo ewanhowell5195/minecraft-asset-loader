@@ -7,7 +7,8 @@ import os from "node:os"
 import path from "node:path"
 import fs from "node:fs/promises"
 import MinecraftAssets from "../src/index.js"
-import { listBuffer, entryFromBuffer, inflateRaw } from "../src/zip.js"
+import { listBuffer, entryFromBuffer } from "../src/zip.js"
+import { unpackChunks } from "../src/jar.js"
 
 const CACHE = path.join(os.tmpdir(), "minecraft-assets-tests", "bulk")
 const OUT = path.join(os.tmpdir(), "minecraft-assets-tests", "bulk-out")
@@ -99,15 +100,16 @@ test("loadJar: forces the download with byte progress", async () => {
   await fs.rm(COLD, { recursive: true, force: true })
 })
 
-test("the sparse jar caches compressed, and covers later selections", async () => {
+test("the sparse jar caches its chunks raw, and covers later selections", async () => {
   await mc.read("assets/minecraft/textures/block/stone.png")
   await new Promise(r => setTimeout(r, 800))
   const details = await mc.manifest.details("1.21.4")
   const sha1 = details.downloads.client.sha1
   const packed = await fs.readFile(path.join(CACHE, "blobs", "jar_" + sha1))
-  assert.ok(packed.length < details.downloads.client.size / 3, "holes deflate away")
-  const sparse = await inflateRaw(new Uint8Array(packed))
-  assert.equal(sparse.length, details.downloads.client.size, "full-size sparse buffer")
+  assert.ok(packed.length < details.downloads.client.size / 2, "only the wanted ranges are stored")
+  const chunks = unpackChunks(new Uint8Array(packed), details.downloads.client.size)
+  assert.ok(chunks && chunks.length > 0, "chunk pack parses")
+  assert.equal(chunks[chunks.length - 1].start + chunks[chunks.length - 1].bytes.length, details.downloads.client.size, "last chunk reaches the end of the jar")
 
   requests = []
   const zip = await mc.export({ filter: p => p.includes("/models/block/") })

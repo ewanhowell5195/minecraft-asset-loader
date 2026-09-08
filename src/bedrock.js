@@ -42,9 +42,13 @@ export class BedrockZip extends ZipSource {
   }
 
   async raw(path) {
-    const { entries } = await this.listing()
-    const entry = entries.get(path)
+    await this.listing()
+    return this.rawSync(path)
+  }
+
+  rawSync(path) {
+    const entry = this._list.entries.get(path)
     if (!entry) return null
-    return { entry, data: rawFromBuffer(await this.buffer(), entry) }
+    return { entry, data: rawFromBuffer(this._held, entry) }
   }
 }

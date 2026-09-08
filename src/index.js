@@ -341,7 +341,9 @@ export default class MinecraftAssets {
 
   async loadJar({ version, onProgress } = {}) {
     const ctx = await this._ctx(version)
-    await (await ctx.jar()).load(onProgress)
+    const jar = await ctx.jar()
+    ctx.listing(this._objects).catch(() => {})
+    await jar.load(onProgress)
   }
 
   async loadObjects({ version, filter, concurrency = 32, onProgress, cache = true } = {}) {
@@ -419,7 +421,7 @@ export default class MinecraftAssets {
   async clearCache(key) {
     for (const ctx of this._contexts.values()) {
       const jar = await ctx._jar?.catch(() => null)
-      await jar?._persisted
+      await jar?.settled()
     }
     if (key == null) return this._store.clear()
     const k = String(key)
