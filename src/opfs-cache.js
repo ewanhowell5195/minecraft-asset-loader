@@ -12,31 +12,61 @@ export class OpfsCache {
     this.maxSize = maxSize == null ? Infinity : maxSize
     this._root = null
     this._index = null
+    this._scan = null
+    this._touched = new Map()
+    this._dirs = new Map()
+    this._evicting = null
+    this._rootDir().catch(() => {})
   }
 
-  async _dir(store, create = true) {
-    this._root ??= navigator.storage.getDirectory()
+  _rootDir() {
+    return this._root ??= navigator.storage.getDirectory()
       .then(r => r.getDirectoryHandle(this.name, { create: true }))
       .then(r => this.key ? r.getDirectoryHandle(this.key, { create: true }) : r)
-    return (await this._root).getDirectoryHandle(store, { create })
+  }
+
+  _dir(store) {
+    this._rootDir()
+    let dir = this._dirs.get(store)
+    if (!dir) {
+      dir = this._root.then(r => r.getDirectoryHandle(store, { create: true }))
+      this._dirs.set(store, dir)
+      dir.catch(() => this._dirs.delete(store))
+    }
+    return dir
   }
 
   async _ready() {
     if (this._index) return this._index
+    if (!this._scan) this._scan = this._load().then(index => this._index = index)
+    return this._scan
+  }
+
+  async _load() {
     const index = new Map()
     for (const store of STORES) {
-      const dir = await this._dir(store, true)
+      const dir = await this._dir(store)
       for await (const [name, handle] of dir.entries()) {
         if (handle.kind !== "file") continue
         const file = await handle.getFile()
-        index.set(store + "/" + name, { size: file.size, mtime: 0 })
+        const id = store + "/" + name
+        index.set(id, { size: file.size, mtime: this._touched.get(id) ?? file.lastModified })
       }
     }
-    return this._index = index
+    return index
+  }
+
+  _touch(id, size) {
+    const now = Date.now()
+    this._touched.set(id, now)
+    if (this._index) {
+      const rec = this._index.get(id)
+      if (rec) rec.mtime = now
+      else this._index.set(id, { size, mtime: now })
+    }
   }
 
   async get(store, key) {
-    const index = await this._ready()
     const name = encodeKey(key)
     let file
     try {
@@ -45,12 +75,11 @@ export class OpfsCache {
       return undefined
     }
     const bytes = new Uint8Array(await file.arrayBuffer())
-    index.set(store + "/" + name, { size: bytes.length, mtime: Date.now() })
+    this._touch(store + "/" + name, bytes.length)
     return store === "meta" ? JSON.parse(decoder.decode(bytes)) : bytes
   }
 
   async set(store, key, value) {
-    const index = await this._ready()
     const name = encodeKey(key)
     const bytes = store === "meta" ? encoder.encode(JSON.stringify(value)) : value
     const handle = await (await this._dir(store)).getFileHandle(name, { create: true })
@@ -60,14 +89,25 @@ export class OpfsCache {
     } finally {
       await writable.close()
     }
-    index.set(store + "/" + name, { size: bytes.length, mtime: Date.now() })
-    await this._evict()
+    const id = store + "/" + name
+    this._touched.set(id, Date.now())
+    if (this._index) this._index.set(id, { size: bytes.length, mtime: Date.now() })
+    this._evictLater()
+  }
+
+  _evictLater() {
+    if (!isFinite(this.maxSize) || this._evicting) return
+    this._evicting = new Promise(resolve => setTimeout(resolve, 0))
+      .then(() => this._ready())
+      .then(() => this._evict())
+      .catch(() => {})
+      .finally(() => { this._evicting = null })
   }
 
   async delete(store, key) {
-    const index = await this._ready()
     const name = encodeKey(key)
-    index.delete(store + "/" + name)
+    this._index?.delete(store + "/" + name)
+    this._touched.delete(store + "/" + name)
     await (await this._dir(store)).removeEntry(name).catch(() => {})
   }
 
@@ -81,8 +121,10 @@ export class OpfsCache {
 
   async clear() {
     this._index = null
-    const root = await this._root
-    if (!root) return
+    this._scan = null
+    this._touched.clear()
+    this._dirs.clear()
+    const root = await this._rootDir()
     for (const store of STORES) await root.removeEntry(store, { recursive: true }).catch(() => {})
   }
 

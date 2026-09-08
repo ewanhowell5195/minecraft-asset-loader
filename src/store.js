@@ -44,6 +44,7 @@ function builtinBackend(dir, maxSize, key) {
   const load = () => impl ??= isNode
     ? import("./cache.js").then(m => new m.FileCache(dir, { maxSize, key }))
     : import("./opfs-cache.js").then(m => new m.OpfsCache(dir, { maxSize, key }))
+  load().catch(() => {})
   return {
     get: async (store, key) => (await load()).get(store, key),
     set: async (store, key, value) => (await load()).set(store, key, value),
