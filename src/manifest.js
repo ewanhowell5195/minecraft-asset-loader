@@ -211,21 +211,58 @@ export class Manifest {
   async _fetchAssets() {
     const res = await this.mc._request(MANIFEST_URL)
     const json = await res.json()
+    const rows = json.versions
     const store = this.mc._store
-    const details = new Array(json.versions.length)
-    await pool(json.versions, 32, async (row, i) => {
-      const key = "details_" + hashFromUrl(row.url)
+    const known = new Array(rows.length)
+    const probes = new Map()
+    const probe = i => memoMap(probes, i, async () => {
+      const key = "details_" + hashFromUrl(rows[i].url)
       let d = await store.get("meta", key)
       if (!d?.downloads) {
-        d = await (await this.mc._request(row.url)).json()
+        d = await (await this.mc._request(rows[i].url)).json()
         await store.set("meta", key, d)
       }
-      details[i] = d
+      return known[i] = d.assetIndex ?? null
     })
+    // April window: april fools builds are the only versions with a unique single-use index
+    const april = row => {
+      const d = new Date(row.releaseTime)
+      const m = d.getUTCMonth()
+      return (m === 2 && d.getUTCDate() >= 25) || (m === 3 && d.getUTCDate() <= 7)
+    }
+    const anchors = []
+    for (let i = 0; i < rows.length; i++) {
+      if (i === 0 || i === rows.length - 1 || rows[i].type === "release" || april(rows[i])) anchors.push(i)
+    }
+    await pool(anchors, 32, probe)
+    const gaps = []
+    const edges = new Set()
+    for (let a = 1; a < anchors.length; a++) {
+      const lo = anchors[a - 1] + 1
+      const hi = anchors[a] - 1
+      if (hi < lo) continue
+      gaps.push([lo, hi])
+      edges.add(lo).add(hi)
+    }
+    await pool([...edges], 32, probe)
+    const solve = async (lo, hi) => {
+      if (hi - lo < 1) return
+      if (hi - lo - 1 <= 2) {
+        await Promise.all(Array.from({ length: hi - lo + 1 }, (_, k) => probe(lo + k)))
+        return
+      }
+      const [a, b] = await Promise.all([probe(lo), probe(hi)])
+      if (a?.id === b?.id) return
+      const mid = (lo + hi) >> 1
+      await probe(mid)
+      await Promise.all([solve(lo, mid), solve(mid, hi)])
+    }
+    await Promise.all(gaps.map(([lo, hi]) => solve(lo, hi)))
+    for (let i = 1; i < rows.length; i++) if (known[i] === undefined) known[i] = known[i - 1]
     const byId = new Map()
-    for (let i = json.versions.length - 1; i >= 0; i--) {
-      const row = json.versions[i]
-      const index = details[i]?.assetIndex
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const row = rows[i]
+      const index = known[i]
       if (!index) continue
       const cur = byId.get(index.id)
       if (!cur) {
@@ -237,10 +274,12 @@ export class Manifest {
           url: index.url,
           size: index.size,
           totalSize: index.totalSize,
-          first: row.id
+          first: row.id,
+          last: row.id
         })
-      } else if (row.type === "release") {
-        cur.type = "release"
+      } else {
+        if (row.type === "release") cur.type = "release"
+        cur.last = row.id
       }
     }
     const versions = [...byId.values()].sort((a, b) => Date.parse(b.releaseTime) - Date.parse(a.releaseTime))

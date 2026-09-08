@@ -128,7 +128,7 @@ class FileEntry {
 
   constructor(ctx, path, jarEntry, obj) {
     this.path = path
-    this.source = obj ? "object" : "jar"
+    if (ctx.mc._type === "java") this.source = obj ? "object" : "jar"
     this.size = (obj ?? jarEntry).size
     if (obj) this.hash = obj.hash
     else this.crc = jarEntry.crc

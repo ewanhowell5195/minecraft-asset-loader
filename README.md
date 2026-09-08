@@ -177,7 +177,7 @@ await assets.read("data/minecraft/loot_table/blocks/stone.json")  // one file's 
 
 ### File entries
 
-Each file is `{ path, source, size, crc, hash }`. The `source` is where it came from: `"jar"` or `"object"`. `crc` is only there on jar files, and `hash` only on [asset objects](#asset-objects). File entries also get `read()` and `raw()` methods:
+Each file is `{ path, source, size, crc, hash }`. The `source` is where it came from: `"jar"` or `"object"`. `crc` is only there on jar files, and `hash` only on [asset objects](#asset-objects). `source` only exists on the `"java"` type, since bedrock and assets files all come from one place. File entries also get `read()` and `raw()` methods:
 
 ```js
 const stone = await assets.file("assets/minecraft/textures/block/stone.png")
@@ -192,7 +192,7 @@ await stone.raw()   // the bytes as stored: { compression: "deflate-raw" | null,
 
 `folder.list()` can be used to list files from this folder instead of from the root. Same formatting as the main list method.
 
-Folder entries are `{ path, source, objects }`, where `path` is the full path from the root, `source` is `"jar"`, `"object"`, or `"both"`, covering every file beneath it, and `objects` is the setting the folder was listed with.
+Folder entries are `{ path, source, objects }`, where `path` is the full path from the root, `source` is `"jar"`, `"object"`, or `"both"`, covering every file beneath it (`"java"` type only, like on files), and `objects` is the setting the folder was listed with.
 
 Folders have the `list`, `search`, `file`, and `read` methods for getting files directly from the folder. These automatically use the folder's `objects` setting unless it is manually overridden.
 
@@ -367,7 +367,7 @@ await assets.getSound("note/pling")
 await assets.getLang("de_de")
 ```
 
-Many game versions share one index, so the list is short (around 56 entries). Each entry keeps the index's own metadata: `sha1`, `url`, `size`, `totalSize` (the combined size of every file it points at), and `first`, the game version that introduced it. An index counts as `"release"` when any release uses it, and `"snapshot"` when only snapshots do. Building the list means fetching every game version's details once, so the first call takes a moment; after that it is all cached.
+Many game versions share one index, so the list is short (around 56 entries). Each entry keeps the index's own metadata: `sha1`, `url`, `size`, `totalSize` (the combined size of every file it points at), plus `first` and `last`, the game versions that introduced it and most recently used it. An index counts as `"release"` when any release uses it, and `"snapshot"` when only snapshots do. Building the list means sampling game version details to find where the indexes change, a few hundred small fetches, so the first call takes a moment; after that it is all cached.
 
 Everything works from the index's own file list: `list`, `search`, `read`, `export`, and the getters. All entries are object-backed, so the `objects` flag is ignored. What resolves is whatever the index actually holds, which is sounds and non-English translations on modern indexes (everything else lives in the jar), plus icons, music, and `.lang` files on the older ones. `getTexture`, `getModel`, `getBlockstate`, `getItemDefinition`, and `getStructure` are usually `null` since that content never left the jar. `loadJar` prefetches every file in the index with byte progress.
 

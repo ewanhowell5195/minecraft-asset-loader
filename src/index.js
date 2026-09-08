@@ -177,14 +177,14 @@ export default class MinecraftAssets {
       const name = rest.slice(0, slash)
       let d = dirs.get(name)
       if (!d) dirs.set(name, d = { jar: false, object: false })
-      d[f.source] = true
+      if (f.source) d[f.source] = true
     }
-    const folders = [...dirs].map(([name, d]) => this._folderEntry(prefix + name, d.jar && d.object ? "both" : d.jar ? "jar" : "object", ctx, withObjects))
+    const folders = [...dirs].map(([name, d]) => this._folderEntry(prefix + name, this._type === "java" ? (d.jar && d.object ? "both" : d.jar ? "jar" : "object") : undefined, ctx, withObjects))
     return { files, folders }
   }
 
   _folderEntry(path, source, ctx, objects) {
-    const entry = { path, source, objects }
+    const entry = source ? { path, source, objects } : { path, objects }
     const context = { version: ctx.entry, objects }
     const join = rel => {
       const r = normalisePath(rel)
@@ -380,7 +380,7 @@ export default class MinecraftAssets {
     const { files } = await ctx.listing(objects ?? this._objects)
     const keep = pathFilter(filter)
     const wanted = files.filter(f => keep(f.path))
-    const jar = wanted.some(f => f.source === "jar") ? await ctx.jar() : null
+    const jar = wanted.some(f => !f.hash) ? await ctx.jar() : null
     if (jar) await jar.buffer()
     let done = 0
     const tick = () => onProgress?.(++done, wanted.length)
@@ -388,7 +388,7 @@ export default class MinecraftAssets {
     if (dir == null) {
       const items = new Array(wanted.length)
       await pool(wanted, concurrency, async (f, i) => {
-        if (f.source === "jar") {
+        if (!f.hash) {
           const { entry, data } = await jar.raw(f.path)
           items[i] = { path: f.path, method: entry.method, crc: entry.crc, size: entry.size, compressedSize: entry.compressedSize, data }
         } else {
@@ -402,7 +402,7 @@ export default class MinecraftAssets {
     const [fs, nodePath] = await Promise.all([import("node:fs/promises"), import("node:path")])
     await pool(wanted, concurrency, async f => {
       let bytes
-      if (f.source === "jar") {
+      if (!f.hash) {
         const { entry, data } = await jar.raw(f.path)
         bytes = await decodeEntry(data, entry)
       } else {

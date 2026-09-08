@@ -50,7 +50,7 @@ test("manifest: releases become versions, previews are snapshots", async () => {
 test("full zip: listing through the lens", async () => {
   const files = await mc.list()
   assert.ok(files.length > 20000)
-  assert.ok(files.every(f => f.source === "jar"))
+  assert.ok(files.every(f => f.source === undefined), "one source, so no source field")
   assert.equal(typeof files[0].crc, "number")
   assert.ok(!files.some(f => f.path.startsWith(".github/") || f.path === ".gitignore"))
   assert.ok(!files.some(f => !f.path.includes("/") && f.path.toLowerCase().endsWith(".md")))

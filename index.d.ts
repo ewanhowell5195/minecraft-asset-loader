@@ -111,8 +111,8 @@ export interface RawBytes {
 
 export interface FileEntry {
   path: string
-  /** Which copy a plain read takes. */
-  source: "jar" | "object"
+  /** Which copy a plain read takes. Java only: bedrock and assets have a single source, so it is absent there. */
+  source?: "jar" | "object"
   size: number
   /** Present when an asset object backs the entry. */
   hash?: string
@@ -127,8 +127,8 @@ export interface FileEntry {
 export interface FolderEntry {
   /** Full path, ready to feed back into list(). */
   path: string
-  /** Everything beneath: jar, object, or both. */
-  source: "jar" | "object" | "both"
+  /** Everything beneath: jar, object, or both. Java only, absent on bedrock and assets. */
+  source?: "jar" | "object" | "both"
   /** The objects setting the folder was listed with, used by its methods unless overridden. */
   objects: boolean
   list(folder?: string | FolderEntry, options?: { objects?: boolean, folders?: false }): Promise<FileEntry[]>

@@ -18,6 +18,7 @@ test("manifest: one entry per asset index, newest first", async () => {
   for (const v of all) {
     assert.ok(v.sha1 && v.url && typeof v.size === "number" && typeof v.totalSize === "number", v.id)
     assert.equal(typeof v.first, "string", "each index remembers the version that introduced it")
+    assert.equal(typeof v.last, "string", "and the most recent version using it")
     assert.ok(v.type === "release" || v.type === "snapshot")
   }
   assert.equal(all.at(-1).id, "pre-1.6")
@@ -34,7 +35,7 @@ test("manifest: one entry per asset index, newest first", async () => {
 test("listing: index files only, everything object-backed", async () => {
   const files = await mc.list()
   assert.ok(files.length > 3000)
-  assert.ok(files.every(f => f.source === "object"))
+  assert.ok(files.every(f => f.source === undefined), "one source, so no source field")
   assert.ok(files.every(f => typeof f.hash === "string" && f.crc === undefined))
   assert.equal(await mc.list({ objects: true }), files, "the objects flag means nothing here")
 
