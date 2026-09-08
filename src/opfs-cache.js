@@ -6,15 +6,18 @@ const encodeKey = key => encodeURIComponent(key).replace(SAFE, c => "%" + c.char
 const decodeKey = name => decodeURIComponent(name)
 
 export class OpfsCache {
-  constructor(dir, { maxSize = 1_000_000_000 } = {}) {
+  constructor(dir, { maxSize = 1_000_000_000, key } = {}) {
     this.name = dir || "minecraft-asset-loader"
+    this.key = key
     this.maxSize = maxSize == null ? Infinity : maxSize
     this._root = null
     this._index = null
   }
 
   async _dir(store, create = true) {
-    this._root ??= navigator.storage.getDirectory().then(r => r.getDirectoryHandle(this.name, { create: true }))
+    this._root ??= navigator.storage.getDirectory()
+      .then(r => r.getDirectoryHandle(this.name, { create: true }))
+      .then(r => this.key ? r.getDirectoryHandle(this.key, { create: true }) : r)
     return (await this._root).getDirectoryHandle(store, { create })
   }
 

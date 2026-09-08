@@ -249,6 +249,8 @@ export interface MinecraftAssetsOptions {
   cacheDir?: string
   /** Byte cap on the built-in cache, LRU. Default 1 GB; `Infinity` or `null` disables eviction. */
   cacheSize?: number | null
+  /** Namespaces the built-in cache, so separate instances can keep separate caches. */
+  cacheKey?: string
   /** Replaces the built-in cache entirely. */
   cacheAPI?: CacheAPI
   /** A url prefix, or a function returning the url to request (falsy means direct). */

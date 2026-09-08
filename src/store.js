@@ -39,11 +39,11 @@ function apiBackend(api) {
   }
 }
 
-function builtinBackend(dir, maxSize) {
+function builtinBackend(dir, maxSize, key) {
   let impl
   const load = () => impl ??= isNode
-    ? import("./cache.js").then(m => new m.FileCache(dir, { maxSize }))
-    : import("./opfs-cache.js").then(m => new m.OpfsCache(dir, { maxSize }))
+    ? import("./cache.js").then(m => new m.FileCache(dir, { maxSize, key }))
+    : import("./opfs-cache.js").then(m => new m.OpfsCache(dir, { maxSize, key }))
   return {
     get: async (store, key) => (await load()).get(store, key),
     set: async (store, key, value) => (await load()).set(store, key, value),
@@ -53,8 +53,8 @@ function builtinBackend(dir, maxSize) {
   }
 }
 
-export function createStore({ cacheAPI, cacheDir, cacheSize } = {}) {
-  const backend = cacheAPI ? apiBackend(cacheAPI) : builtinBackend(cacheDir, cacheSize)
+export function createStore({ cacheAPI, cacheDir, cacheSize, cacheKey } = {}) {
+  const backend = cacheAPI ? apiBackend(cacheAPI) : builtinBackend(cacheDir, cacheSize, cacheKey)
   return {
     get: (store, key) => swallow(() => backend.get(store, key)),
     set: (store, key, value) => swallow(() => backend.set(store, key, value)),

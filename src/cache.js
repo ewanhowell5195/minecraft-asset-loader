@@ -9,8 +9,8 @@ const encodeKey = key => encodeURIComponent(key).replace(SAFE, c => "%" + c.char
 const decodeKey = name => decodeURIComponent(name)
 
 export class FileCache {
-  constructor(dir, { maxSize = 1_000_000_000 } = {}) {
-    this.dir = dir || path.join(os.tmpdir(), "minecraft-asset-loader")
+  constructor(dir, { maxSize = 1_000_000_000, key } = {}) {
+    this.dir = path.join(dir || path.join(os.tmpdir(), "minecraft-asset-loader"), key ?? "")
     this.maxSize = maxSize == null ? Infinity : maxSize
     this._index = null
     this._scan = null

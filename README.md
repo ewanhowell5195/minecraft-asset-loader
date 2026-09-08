@@ -73,6 +73,7 @@ All options are optional:
 | `objects` | `false` | Include [asset objects](#asset-objects) in listings and reads by default |
 | `cacheDir` | OS temp folder | Where the built-in cache lives (Node.js) |
 | `cacheSize` | 1 GB | Cap on the built-in cache in bytes, least recently used purged first. `Infinity` never purges |
+| `cacheKey` | | Namespaces the built-in cache, so separate instances can keep separate caches |
 | `cacheAPI` | | Use [your own cache](#your-own-cache) in place of the built-in cache |
 | `proxy` | | A URL prefix, or a function given the URL and returning the one to request. See [Browser](#browser) |
 | `manifest` | | A version manifest to use instead of fetching Mojang's. See [Your own manifest](#your-own-manifest) |

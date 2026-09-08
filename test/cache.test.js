@@ -145,6 +145,21 @@ test("clearCache: wipes the directory store", async () => {
   await fs.rm(dir, { recursive: true, force: true })
 })
 
+test("cacheKey separates instances sharing a directory", async () => {
+  const dir = path.join(os.tmpdir(), "minecraft-assets-tests", "cache-key")
+  await fs.rm(dir, { recursive: true, force: true })
+  const a = new MinecraftAssets({ cacheDir: dir, cacheKey: "one", version: "1.21.4" })
+  const b = new MinecraftAssets({ cacheDir: dir, cacheKey: "two", version: "1.21.4" })
+  await a.read("assets/minecraft/textures/block/stone.png")
+  await sleep(600)
+  assert.ok((await a.cacheStats()).files > 0)
+  assert.equal((await b.cacheStats()).files, 0, "the other key sees nothing")
+
+  const shared = new MinecraftAssets({ cacheDir: dir, cacheKey: "one", version: "1.21.4" })
+  assert.ok((await shared.cacheStats()).files > 0, "the same key shares")
+  await fs.rm(dir, { recursive: true, force: true })
+})
+
 test("cacheStats, listCache, and single-file purge", async () => {
   const dir = path.join(os.tmpdir(), "minecraft-assets-tests", "cache-stats")
   await fs.rm(dir, { recursive: true, force: true })

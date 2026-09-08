@@ -70,13 +70,13 @@ function bedrockPaths(p, base, kind, exts) {
 const isEntry = x => x != null && typeof x === "object" && typeof x.path === "string"
 
 export default class MinecraftAssets {
-  constructor({ type = "java", cacheDir, cacheSize, cacheAPI, proxy, version, manifest, manifestExpiry, objects } = {}) {
+  constructor({ type = "java", cacheDir, cacheSize, cacheKey, cacheAPI, proxy, version, manifest, manifestExpiry, objects } = {}) {
     if (type !== "java" && type !== "bedrock") throw new TypeError(`Unknown type "${type}"`)
     this._type = type
     this._version = version ?? "release"
     this._objects = !!objects
     this._proxy = proxy
-    this._store = createStore({ cacheAPI, cacheDir, cacheSize })
+    this._store = createStore({ cacheAPI, cacheDir, cacheSize, cacheKey })
     this.manifest = new Manifest(this, { manifest, manifestExpiry })
     this._contexts = new Map()
     this._objectReads = new Map()
