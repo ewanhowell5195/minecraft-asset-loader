@@ -307,7 +307,7 @@ const count = await assets.export({ dir: "./out", version: "b1.7.3" })
 
 ### Caching
 
-Everything Mojang serves except the version manifest is immutable and named by hash, so it is cached forever and never revalidated. On Node.js, the manifest is cached with its expiry. In a browser the browser cache handles this.
+Everything Mojang serves except the version manifest is immutable and named by hash, so it is cached forever and never revalidated. The manifest is cached with its expiry. Once it has expired, a browser serves the cached copy straight away and refreshes it in the background, while Node.js waits for the fresh copy.
 
 | Method | Description |
 |---|---|

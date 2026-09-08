@@ -79,6 +79,31 @@ const BOUND = {
   loadJar: "opts", loadObjects: "opts", export: "opts"
 }
 
+const owners = new WeakMap()
+const raws = new WeakMap()
+
+class ManifestVersion {
+  constructor(row) {
+    Object.assign(this, row)
+    this.legacyLayout = Date.parse(row.releaseTime) < LEGACY_ASSETS_BEFORE
+  }
+
+  details() {
+    return owners.get(this).details(this)
+  }
+
+  list(a, b) {
+    const mc = owners.get(this).mc
+    return mc._isFolderArg(a) ? mc.list(a, { ...b, version: this }) : mc.list({ ...a, version: this })
+  }
+}
+
+for (const [name, kind] of Object.entries(BOUND)) {
+  ManifestVersion.prototype[name] = kind === "arg"
+    ? function (x, opts) { return owners.get(this).mc[name](x, { ...opts, version: this }) }
+    : function (opts) { return owners.get(this).mc[name]({ ...opts, version: this }) }
+}
+
 export class Manifest {
   constructor(mc, { manifest, manifestExpiry } = {}) {
     this.mc = mc
@@ -87,6 +112,7 @@ export class Manifest {
     this._owned = false
     this._expiresAt = 0
     this._pending = null
+    this._persisted = null
     this._details = new Map()
     if (manifest != null) this._adopt(manifest)
   }
@@ -99,15 +125,22 @@ export class Manifest {
     if (this._owned) return this._state
     if (this._state && Date.now() < this._expiresAt) return this._state
     let cached
-    if (!this._state && isNode) {
+    if (!this._state) {
       cached = await this.mc._store.get("meta", this._cacheKey)
       if (!(cached?.json?.versions && typeof cached.time === "number")) cached = undefined
-      else if (Date.now() < cached.time + this._effectiveTtl(cached.ttl)) {
-        this._state = this._build(cached.json)
-        this._owned = false
-        this._expiresAt = cached.time + this._effectiveTtl(cached.ttl)
-        return this._state
+      else {
+        const expiresAt = cached.time + this._effectiveTtl(cached.ttl)
+        if (Date.now() < expiresAt || !isNode) {
+          this._state = this._build(cached.json)
+          this._owned = false
+          this._expiresAt = expiresAt
+          if (Date.now() < expiresAt) return this._state
+        }
       }
+    }
+    if (this._state && !isNode) {
+      if (!this._pending) this._pending = this._fetch().catch(() => {}).finally(() => { this._pending = null })
+      return this._state
     }
     if (!this._pending) {
       this._pending = this._fetch().finally(() => { this._pending = null })
@@ -137,7 +170,7 @@ export class Manifest {
     this._state = state
     this._owned = false
     this._expiresAt = Date.now() + this._effectiveTtl(headerTtl)
-    if (isNode) await this.mc._store.set("meta", this._cacheKey, { time: Date.now(), ttl: headerTtl, json })
+    this._persisted = this.mc._store.set("meta", this._cacheKey, { time: Date.now(), ttl: headerTtl, json })
     return state
   }
 
@@ -184,7 +217,7 @@ export class Manifest {
     if (this._state) for (const e of this._state.entries) previous.set(versionKey(e), e)
     const entries = json.versions.map(row => {
       const old = previous.get(versionKey(row))
-      if (old && old._raw === JSON.stringify(row)) return old
+      if (old && raws.get(old) === JSON.stringify(row)) return old
       return this._enrich(row)
     })
     const byId = new Map()
@@ -193,16 +226,9 @@ export class Manifest {
   }
 
   _enrich(row) {
-    const mc = this.mc
-    const entry = { ...row, legacyLayout: Date.parse(row.releaseTime) < LEGACY_ASSETS_BEFORE }
-    define(entry, "_raw", JSON.stringify(row))
-    define(entry, "details", () => this.details(entry))
-    define(entry, "list", (a, b) => mc._isFolderArg(a) ? mc.list(a, { ...b, version: entry }) : mc.list({ ...a, version: entry }))
-    for (const [name, kind] of Object.entries(BOUND)) {
-      define(entry, name, kind === "arg"
-        ? (x, opts) => mc[name](x, { ...opts, version: entry })
-        : opts => mc[name]({ ...opts, version: entry }))
-    }
+    const entry = new ManifestVersion(row)
+    owners.set(entry, this)
+    raws.set(entry, JSON.stringify(row))
     return entry
   }
 
