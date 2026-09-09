@@ -61,7 +61,7 @@ test("first content read fetches a minimal jar, not the whole thing", async () =
   // A cold cache on purpose: the shared one may be warm from a previous run.
   const COLD = path.join(os.tmpdir(), "minecraft-assets-tests", "bulk-cold")
   await fs.rm(COLD, { recursive: true, force: true })
-  const cold = new MinecraftAssets({ cacheDir: COLD, version: "1.21.4" })
+  const cold = new MinecraftAssets({ cacheDir: COLD, version: "1.21.4", minecraft: false })
 
   requests = []
   const bytes = await cold.read("assets/minecraft/textures/block/stone.png")
@@ -80,7 +80,7 @@ test("first content read fetches a minimal jar, not the whole thing", async () =
 test("loadJar: forces the download with byte progress", async () => {
   const COLD = path.join(os.tmpdir(), "minecraft-assets-tests", "bulk-loadjar")
   await fs.rm(COLD, { recursive: true, force: true })
-  const cold = new MinecraftAssets({ cacheDir: COLD, version: "1.21.4" })
+  const cold = new MinecraftAssets({ cacheDir: COLD, version: "1.21.4", minecraft: false })
 
   const ticks = []
   await cold.loadJar({ onProgress: (done, total) => ticks.push([done, total]) })

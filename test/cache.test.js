@@ -70,7 +70,7 @@ test("FileCache: no cap means no eviction; clear wipes", async () => {
 test("cacheAPI: prefixed string keys, byte values, full roundtrip", async () => {
   const store = new Map()
   const api = { read: k => store.get(k), write: (k, d) => store.set(k, d) }
-  const mc = new MinecraftAssets({ cacheAPI: api, version: "1.21.4" })
+  const mc = new MinecraftAssets({ cacheAPI: api, version: "1.21.4", minecraft: false })
   assert.equal((await mc.read("assets/minecraft/textures/block/stone.png")).length, 157)
   await sleep(600)
 
@@ -163,7 +163,7 @@ test("cacheKey separates instances sharing a directory", async () => {
 test("cacheStats, listCache, and single-file purge", async () => {
   const dir = path.join(os.tmpdir(), "minecraft-assets-tests", "cache-stats")
   await fs.rm(dir, { recursive: true, force: true })
-  const mc = new MinecraftAssets({ cacheDir: dir, version: "1.21.4" })
+  const mc = new MinecraftAssets({ cacheDir: dir, version: "1.21.4", minecraft: false })
   await mc.read("assets/minecraft/textures/block/stone.png")
   await sleep(600)
 

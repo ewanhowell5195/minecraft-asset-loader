@@ -61,6 +61,7 @@ export class Jar extends ZipSource {
     super(options)
     this.sha1 = options.sha1
     this.legacyLayout = options.legacyLayout
+    this.local = options.local ?? null
     this._cached = null
     this._tail = null
   }
@@ -69,12 +70,33 @@ export class Jar extends ZipSource {
   get blobKey() { return "jar_" + this.sha1 }
 
   async _range(start, end, tick) {
+    if (this.local) {
+      try {
+        return await this._readLocal(start, end, tick)
+      } catch {
+        this.local = null
+      }
+    }
     const res = await this.request(this.url, { headers: { Range: `bytes=${start}-${end - 1}` } })
     const wanted = end - start
     const bytes = tick && res.body ? await readBody(res, tick, wanted) : new Uint8Array(await res.arrayBuffer())
     if (res.status !== 206 || bytes.length !== wanted) throw new Error(`Ranged request refused (${res.status}, ${bytes.length} bytes for ${wanted}) by ${this.url}`)
     if (tick && !res.body) tick(wanted)
     return bytes
+  }
+
+  async _readLocal(start, end, tick) {
+    const fs = await import("node:fs/promises")
+    const handle = await fs.open(this.local, "r")
+    try {
+      const bytes = new Uint8Array(end - start)
+      const { bytesRead } = await handle.read(bytes, 0, bytes.length, start)
+      if (bytesRead !== bytes.length) throw new Error("Short read")
+      tick?.(bytes.length)
+      return bytes
+    } finally {
+      await handle.close()
+    }
   }
 
   cached() {
@@ -171,7 +193,7 @@ export class Jar extends ZipSource {
     })
     if (tail) chunks.push(tail)
     chunks.sort((a, b) => a.start - b.start)
-    this._persisted = this._persist(chunks)
+    if (!this.local) this._persisted = this._persist(chunks)
     return chunks
   }
 

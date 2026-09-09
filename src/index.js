@@ -4,7 +4,7 @@ import { VersionContext } from "./version.js"
 import { createStore } from "./store.js"
 import { objectUrl } from "./objects.js"
 import { buildZip, packEntry, decodeEntry, readZip, writeZip } from "./zip.js"
-import { isNode, decoder, pool, pathFilter, define, memoMap } from "./util.js"
+import { isNode, decoder, pool, pathFilter, define, memo, memoMap } from "./util.js"
 
 export { VersionType, LEGACY_ASSETS_BEFORE, readZip, writeZip }
 
@@ -70,16 +70,26 @@ function bedrockPaths(p, base, kind, exts) {
 const isEntry = x => x != null && typeof x === "object" && typeof x.path === "string"
 
 export default class MinecraftAssets {
-  constructor({ type = "java", cacheDir, cacheSize, cacheKey, cacheAPI, proxy, version, manifest, manifestExpiry, objects } = {}) {
+  constructor({ type = "java", cacheDir, cacheSize, cacheKey, cacheAPI, proxy, version, manifest, manifestExpiry, objects, minecraft } = {}) {
     if (type !== "java" && type !== "assets" && type !== "bedrock") throw new TypeError(`Unknown type "${type}"`)
     this._type = type
     this._version = version ?? "release"
     this._objects = !!objects
     this._proxy = proxy
+    this._minecraft = minecraft
+    this._localInstall = null
     this._store = createStore({ cacheAPI, cacheDir, cacheSize, cacheKey })
     this.manifest = new Manifest(this, { manifest, manifestExpiry })
     this._contexts = new Map()
     this._objectReads = new Map()
+  }
+
+  _local() {
+    return memo(this, "_localInstall", async () => {
+      if (!isNode || this._minecraft === false || this._type === "bedrock") return null
+      const { LocalInstall, defaultMinecraftDir } = await import("./local.js")
+      return new LocalInstall(typeof this._minecraft === "string" ? this._minecraft : defaultMinecraftDir(), this._store)
+    })
   }
 
   async _request(url, init) {
@@ -101,6 +111,11 @@ export default class MinecraftAssets {
     if (cache) {
       const hit = await this._store.get("blobs", hash)
       if (hit) return hit
+    }
+    const local = await this._local()
+    if (local) {
+      const bytes = await local.object(hash)
+      if (bytes) return bytes
     }
     const res = await this._request(objectUrl(hash))
     const bytes = new Uint8Array(await res.arrayBuffer())
@@ -186,7 +201,7 @@ export default class MinecraftAssets {
   _folderEntry(path, source, ctx, objects) {
     const entry = source ? { path, source, objects } : { path, objects }
     const context = { version: ctx.entry, objects }
-    const join = rel => {
+    function join(rel) {
       const r = normalisePath(rel)
       return r === path || r.startsWith(path + "/") ? r : path + "/" + r
     }

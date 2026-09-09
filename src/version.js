@@ -41,10 +41,12 @@ export class VersionContext {
     const d = await this.details()
     const client = d.downloads?.client
     if (!client?.url) throw new Error(`Version "${this.entry.id}" has no client jar`)
+    const local = await this.mc._local()
     return new Jar({
       url: client.url,
       size: client.size,
       sha1: client.sha1 ?? hashFromUrl(client.url),
+      local: local ? await local.jar(this.entry.id, client) : null,
       legacyLayout: this.entry.legacyLayout,
       request: (url, init) => this.mc._request(url, init),
       store: this.mc._store
@@ -61,8 +63,12 @@ export class VersionContext {
       const key = "index_" + (meta.sha1 ?? hashFromUrl(url))
       let json = await store.get("meta", key)
       if (!json?.objects) {
-        json = await (await this.mc._request(url)).json()
-        await store.set("meta", key, json)
+        const local = await this.mc._local()
+        json = local ? await local.index(meta.id, meta.sha1) : null
+        if (!json?.objects) {
+          json = await (await this.mc._request(url)).json()
+          await store.set("meta", key, json)
+        }
       }
       return rootIndex(json)
     })

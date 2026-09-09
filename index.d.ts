@@ -263,6 +263,13 @@ export interface MinecraftAssetsOptions {
   manifestExpiry?: number | null
   /** Instance-wide default for the objects flag. Default false. */
   objects?: boolean
+  /**
+   * Probe the local .minecraft installation for jars, asset indexes, and asset objects before
+   * downloading (Node only, "java" and "assets" types). On by default at the platform's standard
+   * location; a string sets the folder, `false` disables. Files are sha1-verified against the
+   * manifest before use, and anything missing or failing falls back to the normal download.
+   */
+  minecraft?: string | boolean
 }
 
 export default class MinecraftAssets {

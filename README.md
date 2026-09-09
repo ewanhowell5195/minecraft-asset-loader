@@ -79,6 +79,7 @@ All options are optional:
 | `proxy` | | A URL prefix, or a function given the URL and returning the one to request. See [Browser](#browser) |
 | `manifest` | | A version manifest to use instead of fetching Mojang's. See [Your own manifest](#your-own-manifest) |
 | `manifestExpiry` | response headers | How long in milliseconds to trust a fetched manifest. `Infinity` keeps one copy for the whole session |
+| `minecraft` | auto-detected | Serve from the local `.minecraft` installation when it has the file, before downloading. A string sets the folder, `false` disables. See [Local .minecraft](#local-minecraft) |
 
 ### Versions
 
@@ -305,6 +306,10 @@ Use the `export` function to export all the files to a zip or a folder. Fetches 
 const zip = await assets.export({ filter: p => p.includes("note_block") })
 const count = await assets.export({ dir: "./out", version: "b1.7.3" })
 ```
+
+### Local .minecraft
+
+In Node.js, the `"java"` and `"assets"` types check the local `.minecraft` installation before downloading anything: version jars, asset indexes, and asset objects are all served straight from disk when the launcher already has them. This is on by default at the platform's standard location, `minecraft: "path/to/.minecraft"` points it somewhere else, and `minecraft: false` turns it off.
 
 ### Caching
 
