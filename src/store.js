@@ -1,6 +1,6 @@
 import { isNode, encoder, decoder } from "./util.js"
 
-const swallow = async fn => {
+async function swallow(fn) {
   try {
     return await fn()
   } catch {

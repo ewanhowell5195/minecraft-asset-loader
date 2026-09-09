@@ -7,7 +7,7 @@ const DEFAULT_TTL = 10 * 60 * 1000
 
 const MAIN_EXTRA = ["1.20.4", "1.20.6", "1.21.3", "1.21.4", "1.21.5", "1.21.8", "1.21.10", "1.21.11"]
 
-const lineOf = (id, bedrock) => {
+function lineOf(id, bedrock) {
   if (bedrock) {
     const [major, minor, patch] = id.split(".")
     return `${major}.${minor}.${Math.floor((parseInt(patch) || 0) / 10) * 10}`
@@ -215,17 +215,20 @@ export class Manifest {
     const store = this.mc._store
     const known = new Array(rows.length)
     const probes = new Map()
-    const probe = i => memoMap(probes, i, async () => {
-      const key = "details_" + hashFromUrl(rows[i].url)
-      let d = await store.get("meta", key)
-      if (!d?.downloads) {
-        d = await (await this.mc._request(rows[i].url)).json()
-        await store.set("meta", key, d)
-      }
-      return known[i] = d.assetIndex ?? null
-    })
+    const mc = this.mc
+    function probe(i) {
+      return memoMap(probes, i, async () => {
+        const key = "details_" + hashFromUrl(rows[i].url)
+        let d = await store.get("meta", key)
+        if (!d?.downloads) {
+          d = await (await mc._request(rows[i].url)).json()
+          await store.set("meta", key, d)
+        }
+        return known[i] = d.assetIndex ?? null
+      })
+    }
     // April window: april fools builds are the only versions with a unique single-use index
-    const april = row => {
+    function april(row) {
       const d = new Date(row.releaseTime)
       const m = d.getUTCMonth()
       return (m === 2 && d.getUTCDate() >= 25) || (m === 3 && d.getUTCDate() <= 7)
@@ -245,7 +248,7 @@ export class Manifest {
       edges.add(lo).add(hi)
     }
     await pool([...edges], 32, probe)
-    const solve = async (lo, hi) => {
+    async function solve(lo, hi) {
       if (hi - lo < 1) return
       if (hi - lo - 1 <= 2) {
         await Promise.all(Array.from({ length: hi - lo + 1 }, (_, k) => probe(lo + k)))

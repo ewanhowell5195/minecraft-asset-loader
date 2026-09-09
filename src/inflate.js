@@ -52,7 +52,7 @@ export function inflateSync(src, size) {
   let bitCnt = 0
   const end = src.length
 
-  const fill = n => {
+  function fill(n) {
     while (bitCnt < n) {
       bitBuf |= (ip < end ? src[ip] : 0) << bitCnt
       ip++
@@ -60,7 +60,7 @@ export function inflateSync(src, size) {
     }
   }
 
-  const bits = n => {
+  function bits(n) {
     if (bitCnt < n) fill(n)
     const v = bitBuf & ((1 << n) - 1)
     bitBuf >>>= n
@@ -68,7 +68,7 @@ export function inflateSync(src, size) {
     return v
   }
 
-  const decode = h => {
+  function decode(h) {
     if (bitCnt < FAST_BITS) fill(FAST_BITS)
     const hit = h.fast[bitBuf & FAST_MASK]
     if (hit) {
@@ -93,7 +93,7 @@ export function inflateSync(src, size) {
     throw new Error("Invalid deflate data")
   }
 
-  const grow = need => {
+  function grow(need) {
     if (need <= out.length) return
     const bigger = new Uint8Array(Math.max(need, out.length * 2))
     bigger.set(out.subarray(0, pos))
