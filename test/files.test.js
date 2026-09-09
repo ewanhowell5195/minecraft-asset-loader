@@ -210,3 +210,10 @@ test("version option: per call, and silently ignored on entry-bound calls", asyn
   const viaEntry = await v.list({ version: "1.8.9" })
   assert.ok(viaEntry.length > 15000, "entry wins, option evaporates")
 })
+
+test("file entries keep working through a Proxy", async () => {
+  const stone = await mc.file(STONE)
+  const proxied = new Proxy(stone, {})
+  assert.equal((await proxied.read()).length, 157)
+  assert.equal((await proxied.raw()).compression, "deflate-raw")
+})

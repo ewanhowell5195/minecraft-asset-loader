@@ -129,3 +129,10 @@ test("enrichment: legacyLayout, methods non-enumerable, stable identity", async 
 test("LEGACY_ASSETS_BEFORE is the 13w24a instant", () => {
   assert.equal(LEGACY_ASSETS_BEFORE, Date.parse("2013-06-13T15:32:23+00:00"))
 })
+
+test("manifest versions keep working through a Proxy", async () => {
+  const version = await mc.manifest.version("1.21.4")
+  const proxied = new Proxy(version, {})
+  assert.equal((await proxied.details()).id, "1.21.4")
+  assert.ok((await proxied.list()).length > 15000)
+})

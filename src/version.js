@@ -127,31 +127,28 @@ export class VersionContext {
   }
 }
 
-class FileEntry {
-  #ctx
-  #jar
-  #obj
+const STATE = Symbol("state")
 
+class FileEntry {
   constructor(ctx, path, jarEntry, obj) {
     this.path = path
     if (ctx.mc._type === "java") this.source = obj ? "object" : "jar"
     this.size = (obj ?? jarEntry).size
     if (obj) this.hash = obj.hash
     else this.crc = jarEntry.crc
-    this.#ctx = ctx
-    this.#jar = jarEntry
-    this.#obj = obj
+    this[STATE] = Object.freeze({ ctx, jar: jarEntry, obj })
   }
 
   read({ prefer } = {}) {
-    const useJar = this.#jar && (!this.#obj || prefer === "jar")
-    return useJar ? this.#ctx.readJar(this.path) : this.#ctx.mc._readObject(this.#obj.hash)
+    const { ctx, jar, obj } = this[STATE]
+    const useJar = jar && (!obj || prefer === "jar")
+    return useJar ? ctx.readJar(this.path) : ctx.mc._readObject(obj.hash)
   }
 
   raw({ prefer } = {}) {
-    const useJar = this.#jar && (!this.#obj || prefer === "jar")
-    if (!useJar) return this.#ctx.mc._readObject(this.#obj.hash).then(bytes => ({ compression: null, bytes }))
-    const ctx = this.#ctx
+    const { ctx, jar: jarEntry, obj } = this[STATE]
+    const useJar = jarEntry && (!obj || prefer === "jar")
+    if (!useJar) return ctx.mc._readObject(obj.hash).then(bytes => ({ compression: null, bytes }))
     const jar = ctx._jarValue
     if (jar?._list && jar._held) return Promise.resolve(rawResult(jar.rawSync(this.path)))
     return ctx.jar().then(j => j.raw(this.path)).then(rawResult)

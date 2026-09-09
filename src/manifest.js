@@ -79,29 +79,30 @@ const BOUND = {
   loadJar: "opts", loadObjects: "opts", export: "opts"
 }
 
-const owners = new WeakMap()
 const raws = new WeakMap()
+const STATE = Symbol("state")
 
 class ManifestVersion {
-  constructor(row) {
+  constructor(manifest, row) {
     Object.assign(this, row)
     this.legacyLayout = Date.parse(row.releaseTime) < LEGACY_ASSETS_BEFORE
+    this[STATE] = Object.freeze({ manifest })
   }
 
   details() {
-    return owners.get(this).details(this)
+    return this[STATE].manifest.details(this)
   }
 
   list(a, b) {
-    const mc = owners.get(this).mc
+    const mc = this[STATE].manifest.mc
     return mc._isFolderArg(a) ? mc.list(a, { ...b, version: this }) : mc.list({ ...a, version: this })
   }
 }
 
 for (const [name, kind] of Object.entries(BOUND)) {
   ManifestVersion.prototype[name] = kind === "arg"
-    ? function (x, opts) { return owners.get(this).mc[name](x, { ...opts, version: this }) }
-    : function (opts) { return owners.get(this).mc[name]({ ...opts, version: this }) }
+    ? function (x, opts) { return this[STATE].manifest.mc[name](x, { ...opts, version: this }) }
+    : function (opts) { return this[STATE].manifest.mc[name]({ ...opts, version: this }) }
 }
 
 export class Manifest {
@@ -311,8 +312,7 @@ export class Manifest {
   }
 
   _enrich(row) {
-    const entry = new ManifestVersion(row)
-    owners.set(entry, this)
+    const entry = new ManifestVersion(this, row)
     raws.set(entry, JSON.stringify(row))
     return entry
   }
