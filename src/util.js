@@ -57,16 +57,21 @@ export async function readBody(res, tick, expected) {
   }
   const reader = res.body.getReader()
   if (expected != null) {
-    const out = new Uint8Array(expected)
+    let out = new Uint8Array(expected)
     let at = 0
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
+      if (at + value.length > out.length) {
+        const bigger = new Uint8Array(Math.max(out.length * 2, at + value.length))
+        bigger.set(out.subarray(0, at))
+        out = bigger
+      }
       out.set(value, at)
       at += value.length
       tick?.(value.length)
     }
-    return at === expected ? out : out.subarray(0, at)
+    return at === out.length ? out : out.subarray(0, at)
   }
   const parts = []
   let size = 0

@@ -113,3 +113,23 @@ test("function proxy: per-url routing, falsy means direct", async () => {
   assert.ok(direct.length >= 2, "exempted host went direct")
   assert.ok(proxied.every(u => u.slice(10).startsWith("https://piston-data")))
 })
+
+test("a server that answers ranges with the whole jar still works", async () => {
+  const realFetch = globalThis.fetch
+  let full = 0
+  globalThis.fetch = async (url, init) => {
+    const rawUrl = String(url)
+    if (rawUrl === JAR) {
+      full++
+      return new Response(zip)
+    }
+    return serve(rawUrl, init)
+  }
+  try {
+    const mc = new MinecraftAssets({ cacheAPI: {}, version: "t1" })
+    assert.equal(new TextDecoder().decode(await mc.read("assets/minecraft/textures/wanted.png")), "proxied png bytes")
+    assert.equal(full, 1, "the whole jar is downloaded once and reused for every range")
+  } finally {
+    globalThis.fetch = realFetch
+  }
+})

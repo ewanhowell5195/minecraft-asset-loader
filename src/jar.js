@@ -64,6 +64,7 @@ export class Jar extends ZipSource {
     this.local = options.local ?? null
     this._cached = null
     this._tail = null
+    this._whole = null
   }
 
   get metaKey() { return "jar_" + this.sha1 }
@@ -77,8 +78,19 @@ export class Jar extends ZipSource {
         this.local = null
       }
     }
-    const res = await this.request(this.url, { headers: { Range: `bytes=${start}-${end - 1}` } })
     const wanted = end - start
+    if (this._whole) {
+      tick?.(wanted)
+      return this._whole.subarray(start, end)
+    }
+    const res = await this.request(this.url, { headers: { Range: `bytes=${start}-${end - 1}` } })
+    if (res.status === 200) {
+      const whole = new Uint8Array(await res.arrayBuffer())
+      if (whole.length !== this.size) throw new Error(`Ranged request refused (200, ${whole.length} bytes for the whole jar) by ${this.url}`)
+      this._whole = whole
+      tick?.(wanted)
+      return whole.subarray(start, end)
+    }
     const bytes = tick && res.body ? await readBody(res, tick, wanted) : new Uint8Array(await res.arrayBuffer())
     if (res.status !== 206 || bytes.length !== wanted) throw new Error(`Ranged request refused (${res.status}, ${bytes.length} bytes for ${wanted}) by ${this.url}`)
     if (tick && !res.body) tick(wanted)
