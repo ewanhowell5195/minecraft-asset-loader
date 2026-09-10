@@ -128,6 +128,13 @@ export class OpfsCache {
     for (const store of STORES) await root.removeEntry(store, { recursive: true }).catch(() => {})
   }
 
+  async setMaxSize(maxSize) {
+    this.maxSize = maxSize == null ? Infinity : maxSize
+    if (!isFinite(this.maxSize)) return
+    await this._ready()
+    await this._evict()
+  }
+
   async _evict() {
     if (!isFinite(this.maxSize)) return
     const index = this._index

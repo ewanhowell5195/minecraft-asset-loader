@@ -103,6 +103,13 @@ export class FileCache {
     for (const store of STORES) await fs.rm(path.join(this.dir, store), { recursive: true, force: true })
   }
 
+  async setMaxSize(maxSize) {
+    this.maxSize = maxSize == null ? Infinity : maxSize
+    if (!isFinite(this.maxSize)) return
+    await this._ready()
+    await this._evict()
+  }
+
   async _evict() {
     if (!isFinite(this.maxSize)) return
     const index = this._index

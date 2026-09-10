@@ -315,4 +315,6 @@ export default class MinecraftAssets {
   listCache(): Promise<Array<{ key: string, size: number }> | null>
   /** Clears the whole cache, or just one file when passed its key. */
   clearCache(key?: string): Promise<void>
+  /** Changes the byte cap on the built-in cache and evicts down to it. `Infinity` or `null` disables eviction. Does nothing with a cacheAPI. */
+  setCacheSize(size: number | null): Promise<void>
 }

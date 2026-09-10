@@ -35,7 +35,8 @@ function apiBackend(api) {
     },
     async clear() {
       await api.clear?.()
-    }
+    },
+    async setMaxSize() {}
   }
 }
 
@@ -50,7 +51,8 @@ function builtinBackend(dir, maxSize, key) {
     set: async (store, key, value) => (await load()).set(store, key, value),
     delete: async (store, key) => (await load()).delete(store, key),
     list: async () => (await load()).list(),
-    clear: async () => (await load()).clear()
+    clear: async () => (await load()).clear(),
+    setMaxSize: async size => (await load()).setMaxSize(size)
   }
 }
 
@@ -61,6 +63,7 @@ export function createStore({ cacheAPI, cacheDir, cacheSize, cacheKey } = {}) {
     set: (store, key, value) => swallow(() => backend.set(store, key, value)),
     delete: (store, key) => swallow(() => backend.delete(store, key)),
     list: async () => (await swallow(() => backend.list())) ?? null,
-    clear: () => swallow(() => backend.clear())
+    clear: () => swallow(() => backend.clear()),
+    setMaxSize: size => swallow(() => backend.setMaxSize(size))
   }
 }

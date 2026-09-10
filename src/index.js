@@ -444,6 +444,10 @@ export default class MinecraftAssets {
     return list ? list.sort((a, b) => b.size - a.size) : null
   }
 
+  setCacheSize(size) {
+    return this._store.setMaxSize(size)
+  }
+
   async clearCache(key) {
     for (const ctx of this._contexts.values()) {
       const jar = await ctx._jar?.catch(() => null)

@@ -321,6 +321,7 @@ Everything Mojang serves except the version manifest is immutable and named by h
 | `.cacheStats()` | The cache as `{ files, size }` in bytes |
 | `.listCache()` | Every cached file as `{ key, size }`, biggest first |
 | `.clearCache(key?)` | Clears the full cache, or just one file when passed its key |
+| `.setCacheSize(bytes)` | Changes the cache limit and evicts down to it. `null` disables eviction |
 
 ```js
 await assets.loadJar({ version: "26.1.2", onProgress: (done, total) => {} })
