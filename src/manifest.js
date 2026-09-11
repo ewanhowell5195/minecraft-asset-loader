@@ -421,7 +421,7 @@ export class Manifest {
     if (cached && typeof cached === "object") return cached
     const res = await this.mc._request(type === "bedrock" ? `${BEDROCK_RELEASES}/tags/${entry.tag}` : entry.url)
     const json = await res.json()
-    await store.set("meta", cacheKey, json)
+    store.set("meta", cacheKey, json)
     return json
   }
 }

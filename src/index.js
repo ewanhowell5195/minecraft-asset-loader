@@ -82,6 +82,7 @@ export default class MinecraftAssets {
     this.manifest = new Manifest(this, { manifest, manifestExpiry, onProgress: onManifestProgress })
     this._contexts = new Map()
     this._objectReads = new Map()
+    this._objectFetches = new Map()
   }
 
   _local() {
@@ -107,7 +108,14 @@ export default class MinecraftAssets {
     return res
   }
 
-  async _fetchObject(hash, cache = true) {
+  _fetchObject(hash, cache = true) {
+    if (!cache) return this._loadObject(hash, false)
+    const pending = memoMap(this._objectFetches, hash, () => this._loadObject(hash, true))
+    pending.finally(() => { if (this._objectFetches.get(hash) === pending) this._objectFetches.delete(hash) })
+    return pending
+  }
+
+  async _loadObject(hash, cache) {
     if (cache) {
       const hit = await this._store.get("blobs", hash)
       if (hit) return hit
@@ -119,7 +127,7 @@ export default class MinecraftAssets {
     }
     const res = await this._request(objectUrl(hash))
     const bytes = new Uint8Array(await res.arrayBuffer())
-    if (cache) await this._store.set("blobs", hash, bytes)
+    if (cache) this._store.set("blobs", hash, bytes)
     return bytes
   }
 

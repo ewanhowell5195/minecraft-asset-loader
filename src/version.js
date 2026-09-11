@@ -67,7 +67,7 @@ export class VersionContext {
         json = local ? await local.index(meta.id, meta.sha1) : null
         if (!json?.objects) {
           json = await (await this.mc._request(url)).json()
-          await store.set("meta", key, json)
+          store.set("meta", key, json)
         }
       }
       return rootIndex(json)
