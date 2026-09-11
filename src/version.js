@@ -85,7 +85,7 @@ export class VersionContext {
       const index = await this.index()
       const byPath = new Map()
       for (const [path, obj] of index) byPath.set(path, this._fileEntry(path, null, obj))
-      const files = Object.freeze([...byPath.values()].sort((a, b) => collator.compare(a.path, b.path)))
+      const files = Object.freeze(Array.from(byPath.values()).sort((a, b) => collator.compare(a.path, b.path)))
       let paths
       return { files, byPath, get paths() { return paths ??= Object.freeze(files.map(f => f.path)) } }
     }
@@ -99,7 +99,7 @@ export class VersionContext {
     let list
     if (!index && listing.order) list = listing.order.map(path => byPath.get(path))
     else {
-      list = [...byPath.values()]
+      list = Array.from(byPath.values())
       if (!listing.sorted || index) list.sort((a, b) => collator.compare(a.path, b.path))
     }
     const files = Object.freeze(list)

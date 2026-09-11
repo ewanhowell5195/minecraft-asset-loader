@@ -194,7 +194,7 @@ export default class MinecraftAssets {
       if (!d) dirs.set(name, d = { jar: false, object: false })
       if (f.source) d[f.source] = true
     }
-    const folders = [...dirs].map(([name, d]) => this._folderEntry(prefix + name, this._type === "java" ? (d.jar && d.object ? "both" : d.jar ? "jar" : "object") : undefined, ctx, withObjects))
+    const folders = Array.from(dirs).map(([name, d]) => this._folderEntry(prefix + name, this._type === "java" ? (d.jar && d.object ? "both" : d.jar ? "jar" : "object") : undefined, ctx, withObjects))
     return { files, folders }
   }
 
@@ -376,7 +376,7 @@ export default class MinecraftAssets {
     const ctx = await this._ctx(version)
     const index = await ctx.index()
     const keep = pathFilter(filter)
-    const wanted = index ? [...index].filter(([path]) => keep(path)) : []
+    const wanted = index ? Array.from(index).filter(([path]) => keep(path)) : []
     const results = new Array(wanted.length)
     let done = 0
     await pool(wanted, concurrency, async ([, { hash }], i) => {

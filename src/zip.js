@@ -192,7 +192,7 @@ export function buildZip(items) {
 
   const out = new Uint8Array(offset + cdSize + 22)
   let at = 0
-  for (const p of [...parts, ...centrals, eocd]) {
+  for (const p of parts.concat(centrals, [eocd])) {
     out.set(p, at)
     at += p.length
   }
@@ -225,7 +225,7 @@ export function readZip(bytes) {
 }
 
 export async function writeZip(files, { compress = true, concurrency = 32, onProgress } = {}) {
-  const list = files instanceof Map ? [...files]
+  const list = files instanceof Map ? Array.from(files)
     : Array.isArray(files) ? files.map(f => [f.path, f])
     : Object.entries(files)
   const items = new Array(list.length)

@@ -113,7 +113,7 @@ export class OpfsCache {
 
   async list() {
     const index = await this._ready()
-    return [...index.entries()].map(([id, rec]) => {
+    return Array.from(index.entries()).map(([id, rec]) => {
       const slash = id.indexOf("/")
       return { key: id.slice(0, slash + 1) + decodeKey(id.slice(slash + 1)), size: rec.size }
     })
@@ -141,7 +141,7 @@ export class OpfsCache {
     let total = 0
     for (const rec of index.values()) total += rec.size
     if (total <= this.maxSize) return
-    const order = [...index.entries()].sort((a, b) => a[1].mtime - b[1].mtime)
+    const order = Array.from(index.entries()).sort((a, b) => a[1].mtime - b[1].mtime)
     for (const [id, rec] of order) {
       if (total <= this.maxSize) break
       index.delete(id)

@@ -151,7 +151,7 @@ export class Jar extends ZipSource {
     for (const e of entries) if (isData(e.path, this.legacyLayout)) map.set(e.path, e)
     const listing = { entries: map, cdOffset, cdSize, sorted: false }
     listing.sorting = new Promise(resolve => setTimeout(resolve, 0)).then(() => {
-      const data = [...map.values()].sort((a, b) => collator.compare(a.path, b.path))
+      const data = Array.from(map.values()).sort((a, b) => collator.compare(a.path, b.path))
       listing.order = data.map(e => e.path)
       listing.sorted = true
       this._persistedMeta = this.store.set("meta", this.metaKey, {
@@ -188,7 +188,7 @@ export class Jar extends ZipSource {
     if (cached) return cached
     const { entries, cdOffset } = await this.listing()
     const tail = this._tail
-    const ranges = [...entries.values()].map(e => this._entryRange(e, tail ? tail.start : this.size))
+    const ranges = Array.from(entries.values()).map(e => this._entryRange(e, tail ? tail.start : this.size))
     if (!tail) ranges.push([cdOffset, this.size])
     const merged = mergeRanges(ranges, MERGE_GAP)
     const onProgress = this._progress
