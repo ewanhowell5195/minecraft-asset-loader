@@ -79,6 +79,7 @@ All options are optional:
 | `proxy` | | A URL prefix, or a function given the URL and returning the one to request. See [Browser](#browser) |
 | `manifest` | | A version manifest to use instead of fetching Mojang's. See [Your own manifest](#your-own-manifest) |
 | `manifestExpiry` | response headers | How long in milliseconds to trust a fetched manifest. `Infinity` keeps one copy for the whole session |
+| `onManifestProgress` | | Called with a 0 to 1 ratio while the manifest is built. Only `assets`, which resolves every version's asset index and takes hundreds of requests |
 | `minecraft` | auto-detected | Serve from the local `.minecraft` installation when it has the file, before downloading. A string sets the folder, `false` disables. See [Local .minecraft](#local-minecraft) |
 
 ### Versions

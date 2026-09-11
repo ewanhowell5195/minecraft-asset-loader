@@ -106,9 +106,10 @@ for (const [name, kind] of Object.entries(BOUND)) {
 }
 
 export class Manifest {
-  constructor(mc, { manifest, manifestExpiry } = {}) {
+  constructor(mc, { manifest, manifestExpiry, onProgress } = {}) {
     this.mc = mc
     this._expiry = manifestExpiry
+    this._onProgress = onProgress
     this._state = null
     this._owned = false
     this._expiresAt = 0
@@ -217,6 +218,17 @@ export class Manifest {
     const known = new Array(rows.length)
     const probes = new Map()
     const mc = this.mc
+    const onProgress = this._onProgress
+    let done = 0
+    let total = 0
+    let last = -1
+    const step = () => {
+      const ratio = total ? ++done / total : 1
+      const percent = Math.round(ratio * 100)
+      if (percent === last && done < total) return
+      last = percent
+      onProgress?.(ratio)
+    }
     function probe(i) {
       return memoMap(probes, i, async () => {
         const key = "details_" + hashFromUrl(rows[i].url)
@@ -238,7 +250,6 @@ export class Manifest {
     for (let i = 0; i < rows.length; i++) {
       if (i === 0 || i === rows.length - 1 || rows[i].type === "release" || april(rows[i])) anchors.push(i)
     }
-    await pool(anchors, 32, probe)
     const gaps = []
     const edges = new Set()
     for (let a = 1; a < anchors.length; a++) {
@@ -248,7 +259,11 @@ export class Manifest {
       gaps.push([lo, hi])
       edges.add(lo).add(hi)
     }
-    await pool([...edges], 32, probe)
+    total = anchors.length + edges.size + gaps.length
+    last = 0
+    onProgress?.(0)
+    await pool(anchors, 32, async i => { await probe(i); step() })
+    await pool([...edges], 32, async i => { await probe(i); step() })
     async function solve(lo, hi) {
       if (hi - lo < 1) return
       if (hi - lo - 1 <= 2) {
@@ -261,7 +276,7 @@ export class Manifest {
       await probe(mid)
       await Promise.all([solve(lo, mid), solve(mid, hi)])
     }
-    await Promise.all(gaps.map(([lo, hi]) => solve(lo, hi)))
+    await Promise.all(gaps.map(async ([lo, hi]) => { await solve(lo, hi); step() }))
     for (let i = 1; i < rows.length; i++) if (known[i] === undefined) known[i] = known[i - 1]
     const byId = new Map()
     for (let i = rows.length - 1; i >= 0; i--) {
