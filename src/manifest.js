@@ -16,6 +16,19 @@ function lineOf(id, bedrock) {
   return m ? m[1] + "." + m[2] : id
 }
 
+function bedrockVersion(release) {
+  const asset = release.assets?.find(a => a.name.endsWith("-full.zip"))
+  return {
+    id: release.tag_name.replace(/^v/, ""),
+    type: release.prerelease ? "snapshot" : "release",
+    releaseTime: release.published_at,
+    tag: release.tag_name,
+    zip: asset
+      ? { url: asset.browser_download_url, size: asset.size }
+      : { url: `https://github.com/Mojang/bedrock-samples/archive/refs/tags/${release.tag_name}.zip`, size: null, archive: true }
+  }
+}
+
 function main(all) {
   const bedrock = all.some(v => v.zip)
   const releases = all.filter(v => v.type === "release")
@@ -56,6 +69,7 @@ function applyFilter(all, filter) {
 }
 
 function ttlFromHeaders(headers) {
+  if (!headers) return DEFAULT_TTL
   const control = headers.get("cache-control")
   const m = control && /max-age=(\d+)/i.exec(control)
   if (m) {
@@ -116,6 +130,7 @@ export class Manifest {
     this._pending = null
     this._persisted = null
     this._details = new Map()
+    this._source = null
     if (manifest != null) this._adopt(manifest)
   }
 
@@ -192,18 +207,7 @@ export class Manifest {
     while (true) {
       const res = await this.mc._request(`${BEDROCK_RELEASES}?per_page=100&page=${page++}`)
       const batch = await res.json()
-      for (const r of batch) {
-        const asset = r.assets?.find(a => a.name.endsWith("-full.zip"))
-        versions.push({
-          id: r.tag_name.replace(/^v/, ""),
-          type: r.prerelease ? "snapshot" : "release",
-          releaseTime: r.published_at,
-          tag: r.tag_name,
-          zip: asset
-            ? { url: asset.browser_download_url, size: asset.size }
-            : { url: `https://github.com/Mojang/bedrock-samples/archive/refs/tags/${r.tag_name}.zip`, size: null, archive: true }
-        })
-      }
+      for (const r of batch) versions.push(bedrockVersion(r))
       headers = res.headers
       if (batch.length < 100) break
     }
@@ -211,8 +215,8 @@ export class Manifest {
   }
 
   async _fetchAssets() {
-    const res = await this.mc._request(MANIFEST_URL)
-    const json = await res.json()
+    const res = this._source ? null : await this.mc._request(MANIFEST_URL)
+    const json = this._source ?? await res.json()
     const rows = json.versions
     const store = this.mc._store
     const known = new Array(rows.length)
@@ -302,12 +306,24 @@ export class Manifest {
       }
     }
     const versions = [...byId.values()].sort((a, b) => Date.parse(b.releaseTime) - Date.parse(a.releaseTime))
-    return { json: { versions }, headers: res.headers }
+    return { json: { versions }, headers: res?.headers }
   }
 
   _adopt(json) {
+    if (this.mc._type === "bedrock") {
+      if (!Array.isArray(json) || json.some(r => typeof r?.tag_name !== "string")) throw new TypeError("Not a releases array")
+      this._state = this._build({ versions: json.map(bedrockVersion) })
+      this._owned = true
+      this._expiresAt = Infinity
+      return
+    }
     if (!json || typeof json !== "object" || !Array.isArray(json.versions)) throw new TypeError("Not a version manifest")
-    this._state = this._build(JSON.parse(JSON.stringify(json)))
+    const copy = JSON.parse(JSON.stringify(json))
+    if (this.mc._type === "assets") {
+      this._source = copy
+      return
+    }
+    this._state = this._build(copy)
     this._owned = true
     this._expiresAt = Infinity
   }
@@ -366,7 +382,7 @@ export class Manifest {
   async update(json) {
     if (json !== undefined) {
       this._adopt(json)
-      return
+      if (this.mc._type !== "assets") return
     }
     await this._fetch()
   }

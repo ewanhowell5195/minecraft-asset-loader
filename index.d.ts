@@ -12,6 +12,17 @@ export interface ManifestRow {
   [key: string]: unknown
 }
 
+export interface GitHubRelease {
+  tag_name: string
+  prerelease?: boolean
+  published_at?: string
+  assets?: { name: string, size: number, browser_download_url: string }[]
+  [key: string]: unknown
+}
+
+/** The listing a type is built from: Mojang's manifest for "java" and "assets", the releases array for "bedrock". */
+export type SourceManifest = VersionManifest | GitHubRelease[]
+
 export interface VersionManifest {
   latest?: { release?: string, snapshot?: string }
   versions: ManifestRow[]
@@ -229,7 +240,7 @@ export interface ManifestAPI {
   latest(): Promise<Latest>
   details(version: VersionRef): Promise<VersionDetails>
   /** Supply a manifest to own, or call with nothing to refetch now and hand ownership back. */
-  update(manifest?: VersionManifest): Promise<void>
+  update(manifest?: SourceManifest): Promise<void>
 }
 
 /** Caller-supplied storage. Keys are `meta/...` or `blobs/...`; values are always bytes. */
@@ -257,8 +268,8 @@ export interface MinecraftAssetsOptions {
   proxy?: string | ((url: string) => string | false | null | undefined)
   /** The default version. Default: "release". */
   version?: VersionRef | null
-  /** A caller-supplied manifest, owned by the caller. */
-  manifest?: VersionManifest
+  /** A caller-supplied manifest. "bedrock" takes GitHub's releases array; "assets" derives its index list from it. */
+  manifest?: SourceManifest
   /** Trust window in ms for a library-fetched manifest; `Infinity`/`null` keeps one copy per session. */
   manifestExpiry?: number | null
   /** Called with a 0 to 1 ratio while the manifest is built. Only "assets", which resolves every version's index. */

@@ -77,7 +77,7 @@ All options are optional:
 | `cacheKey` | | Namespaces the built-in cache, so separate instances can keep separate caches |
 | `cacheAPI` | | Use [your own cache](#your-own-cache) in place of the built-in cache |
 | `proxy` | | A URL prefix, or a function given the URL and returning the one to request. See [Browser](#browser) |
-| `manifest` | | A version manifest to use instead of fetching Mojang's. See [Your own manifest](#your-own-manifest) |
+| `manifest` | | The listing to use instead of fetching it: Mojang's version manifest, or GitHub's releases array for `bedrock`. See [Your own manifest](#your-own-manifest) |
 | `manifestExpiry` | response headers | How long in milliseconds to trust a fetched manifest. `Infinity` keeps one copy for the whole session |
 | `onManifestProgress` | | Called with a 0 to 1 ratio while the manifest is built. Only `assets`, which resolves every version's asset index and takes hundreds of requests |
 | `minecraft` | auto-detected | Serve from the local `.minecraft` installation when it has the file, before downloading. A string sets the folder, `false` disables. See [Local .minecraft](#local-minecraft) |
@@ -154,6 +154,16 @@ Supported methods are `details`, `list`, `search`, `file`, `read`, every getter,
 ### Your own manifest
 
 If you already fetch the manifest yourself, you can pass it in as `manifest` to the constructor. Use `assets.manifest.update(json)` to update it later with a newer version. When a manifest was provided by you, it will not expire and relies on you to keep it refreshed. `.update()` with no argument refetches from Mojang and hands control back to the library.
+
+What to hand over is whatever that type is built from, not the list it ends up with:
+
+| Type | Pass |
+|---|---|
+| `java` | Mojang's version manifest |
+| `assets` | Mojang's version manifest, the same document |
+| `bedrock` | The array GitHub's releases endpoint returns |
+
+`assets` lists asset indexes rather than versions, and works them out by reading each version's details, so the manifest you provide is the input to that. The index list itself stays the library's to build and cache, and it will read those details, from the cache when they are there and over the network when they are not.
 
 ### Files
 

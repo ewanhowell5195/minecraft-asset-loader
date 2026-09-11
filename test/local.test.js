@@ -7,6 +7,7 @@ import path from "node:path"
 import fs from "node:fs/promises"
 import MinecraftAssets from "../src/index.js"
 import { objectUrl } from "../src/objects.js"
+import { hashFromUrl } from "../src/util.js"
 import { defaultMinecraftDir, LocalInstall } from "../src/local.js"
 
 const FAKE = path.join(os.tmpdir(), "minecraft-assets-tests", "local-fake")
@@ -39,7 +40,13 @@ const soundBytes = new Uint8Array(await (await fetch(objectUrl(soundHash))).arra
 const client = (await setup.manifest.details(JAR_VERSION)).downloads.client
 const jarBytes = new Uint8Array(await (await fetch(client.url)).arrayBuffer())
 const jarRow = JSON.parse(JSON.stringify(await setup.manifest.version(JAR_VERSION)))
-const indexRow = { id: index.id, type: "release", releaseTime: "2024-01-01T00:00:00+00:00", sha1: index.sha1, url: index.url, size: index.size, totalSize: index.totalSize }
+const assetsRow = JSON.parse(JSON.stringify(await setup.manifest.version("1.21.4")))
+
+// assets mode derives its index list from the version details, so seed those to work offline
+function withDetails() {
+  const store = new Map([[ "meta/details_" + hashFromUrl(assetsRow.url), new TextEncoder().encode(JSON.stringify(details)) ]])
+  return { read: k => store.get(k), write: (k, d) => store.set(k, d) }
+}
 
 await fs.rm(FAKE, { recursive: true, force: true })
 await put(path.join(FAKE, "assets", "indexes", index.id + ".json"), indexBytes)
@@ -68,12 +75,12 @@ test("jar: served and listed from disk, fully offline", async () => {
 
 test("assets mode: index and objects from disk, fully offline", async () => {
   await offline(async () => {
-    const mc = new MinecraftAssets({ cacheAPI: {}, minecraft: FAKE, type: "assets", version: index.id, manifest: { versions: [indexRow] } })
+    const mc = new MinecraftAssets({ cacheAPI: withDetails(), minecraft: FAKE, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
     assert.ok((await mc.list()).length > 3000)
     assert.deepEqual(Array.from(await mc.read(SOUND)), Array.from(soundBytes))
     assert.ok((await mc.getSound("note/pling")).length === soundBytes.length)
 
-    const off = new MinecraftAssets({ cacheAPI: {}, minecraft: false, type: "assets", version: index.id, manifest: { versions: [indexRow] } })
+    const off = new MinecraftAssets({ cacheAPI: {}, minecraft: false, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
     await assert.rejects(off.list(), /OFFLINE/)
   })
 })
@@ -89,7 +96,7 @@ test("corrupt local files are ignored, not served", async () => {
   badJar[100] ^= 0xff
   await put(path.join(bad, "versions", JAR_VERSION, JAR_VERSION + ".jar"), badJar)
 
-  const mc = new MinecraftAssets({ cacheAPI: {}, minecraft: bad, type: "assets", version: index.id, manifest: { versions: [indexRow] } })
+  const mc = new MinecraftAssets({ cacheAPI: withDetails(), minecraft: bad, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
   assert.deepEqual(Array.from(await mc.read(SOUND)), Array.from(soundBytes), "hash mismatch falls back to the network")
 
   const store = new Map()
