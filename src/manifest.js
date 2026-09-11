@@ -4,6 +4,7 @@ export const MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_mani
 const BEDROCK_RELEASES = "https://api.github.com/repos/Mojang/bedrock-samples/releases"
 export const LEGACY_ASSETS_BEFORE = Date.parse("2013-06-13T15:32:23+00:00")
 const DEFAULT_TTL = 10 * 60 * 1000
+const ASSET_INDEXES = "asset_indexes"
 
 const MAIN_EXTRA = ["1.20.4", "1.20.6", "1.21.3", "1.21.4", "1.21.5", "1.21.8", "1.21.10", "1.21.11"]
 
@@ -233,15 +234,18 @@ export class Manifest {
       last = percent
       onProgress?.(ratio)
     }
+    const seen = await store.get("meta", ASSET_INDEXES) ?? {}
+    let added = 0
+    const flush = () => added ? store.set("meta", ASSET_INDEXES, seen).then(() => { added = 0 }) : null
     function probe(i) {
       return memoMap(probes, i, async () => {
-        const key = "details_" + hashFromUrl(rows[i].url)
-        let d = await store.get("meta", key)
-        if (!d?.downloads) {
-          d = await (await mc._request(rows[i].url)).json()
-          await store.set("meta", key, d)
+        const key = hashFromUrl(rows[i].url)
+        if (!(key in seen)) {
+          const d = await (await mc._request(rows[i].url)).json()
+          seen[key] = d.assetIndex ?? null
+          added++
         }
-        return known[i] = d.assetIndex ?? null
+        return known[i] = seen[key]
       })
     }
     // April window: april fools builds are the only versions with a unique single-use index
@@ -267,7 +271,9 @@ export class Manifest {
     last = 0
     onProgress?.(0)
     await pool(anchors, 32, async i => { await probe(i); step() })
-    await pool([...edges], 32, async i => { await probe(i); step() })
+    flush()
+    await pool(Array.from(edges), 32, async i => { await probe(i); step() })
+    flush()
     async function solve(lo, hi) {
       if (hi - lo < 1) return
       if (hi - lo - 1 <= 2) {
@@ -281,6 +287,7 @@ export class Manifest {
       await Promise.all([solve(lo, mid), solve(mid, hi)])
     }
     await Promise.all(gaps.map(async ([lo, hi]) => { await solve(lo, hi); step() }))
+    await flush()
     for (let i = 1; i < rows.length; i++) if (known[i] === undefined) known[i] = known[i - 1]
     const byId = new Map()
     for (let i = rows.length - 1; i >= 0; i--) {
@@ -305,7 +312,7 @@ export class Manifest {
         cur.last = row.id
       }
     }
-    const versions = [...byId.values()].sort((a, b) => Date.parse(b.releaseTime) - Date.parse(a.releaseTime))
+    const versions = Array.from(byId.values()).sort((a, b) => Date.parse(b.releaseTime) - Date.parse(a.releaseTime))
     return { json: { versions }, headers: res?.headers }
   }
 

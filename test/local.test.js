@@ -42,9 +42,10 @@ const jarBytes = new Uint8Array(await (await fetch(client.url)).arrayBuffer())
 const jarRow = JSON.parse(JSON.stringify(await setup.manifest.version(JAR_VERSION)))
 const assetsRow = JSON.parse(JSON.stringify(await setup.manifest.version("1.21.4")))
 
-// assets mode derives its index list from the version details, so seed those to work offline
-function withDetails() {
-  const store = new Map([[ "meta/details_" + hashFromUrl(assetsRow.url), new TextEncoder().encode(JSON.stringify(details)) ]])
+// assets mode derives its index list from the version details, so seed what it keeps to work offline
+function withIndexes() {
+  const map = { [hashFromUrl(assetsRow.url)]: index }
+  const store = new Map([[ "meta/asset_indexes", new TextEncoder().encode(JSON.stringify(map)) ]])
   return { read: k => store.get(k), write: (k, d) => store.set(k, d) }
 }
 
@@ -75,7 +76,7 @@ test("jar: served and listed from disk, fully offline", async () => {
 
 test("assets mode: index and objects from disk, fully offline", async () => {
   await offline(async () => {
-    const mc = new MinecraftAssets({ cacheAPI: withDetails(), minecraft: FAKE, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
+    const mc = new MinecraftAssets({ cacheAPI: withIndexes(), minecraft: FAKE, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
     assert.ok((await mc.list()).length > 3000)
     assert.deepEqual(Array.from(await mc.read(SOUND)), Array.from(soundBytes))
     assert.ok((await mc.getSound("note/pling")).length === soundBytes.length)
@@ -96,7 +97,7 @@ test("corrupt local files are ignored, not served", async () => {
   badJar[100] ^= 0xff
   await put(path.join(bad, "versions", JAR_VERSION, JAR_VERSION + ".jar"), badJar)
 
-  const mc = new MinecraftAssets({ cacheAPI: withDetails(), minecraft: bad, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
+  const mc = new MinecraftAssets({ cacheAPI: withIndexes(), minecraft: bad, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
   assert.deepEqual(Array.from(await mc.read(SOUND)), Array.from(soundBytes), "hash mismatch falls back to the network")
 
   const store = new Map()

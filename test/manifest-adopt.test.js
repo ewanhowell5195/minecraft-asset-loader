@@ -27,10 +27,9 @@ function offline() {
 }
 
 function seeded(rows) {
-  const store = new Map(rows.map(row => [
-    "meta/details_" + hashFromUrl(row.url),
-    new TextEncoder().encode(JSON.stringify({ assetIndex: ASSET_INDEX, downloads: {} })),
-  ]))
+  const map = {}
+  for (const row of rows) map[hashFromUrl(row.url)] = ASSET_INDEX
+  const store = new Map([[ "meta/asset_indexes", new TextEncoder().encode(JSON.stringify(map)) ]])
   return { read: k => store.get(k), write: (k, d) => store.set(k, d) }
 }
 
@@ -60,7 +59,7 @@ test("assets: a supplied manifest is the version list, and the index list is sti
   }
 })
 
-test("assets: details already cached means no network at all", async () => {
+test("assets: a cached index map means no network at all", async () => {
   const restore = offline()
   try {
     const mc = new MinecraftAssets({ cacheAPI: seeded([ROW_A, ROW_B]), type: "assets", manifest: { versions: [ROW_A, ROW_B] } })
