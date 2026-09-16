@@ -120,11 +120,20 @@ for (const [name, kind] of Object.entries(BOUND)) {
     : function (opts) { return this[STATE].manifest.mc[name]({ ...opts, version: this }) }
 }
 
+function sameEntries(a, b) {
+  if (a.entries.length !== b.entries.length) return false
+  for (let i = 0; i < a.entries.length; i++) {
+    if (a.entries[i] !== b.entries[i]) return false
+  }
+  return true
+}
+
 export class Manifest {
-  constructor(mc, { manifest, manifestExpiry, onProgress } = {}) {
+  constructor(mc, { manifest, manifestExpiry, onProgress, onUpdate } = {}) {
     this.mc = mc
     this._expiry = manifestExpiry
     this._onProgress = onProgress
+    this._onUpdate = onUpdate
     this._state = null
     this._owned = false
     this._expiresAt = 0
@@ -158,8 +167,14 @@ export class Manifest {
         }
       }
     }
-    if (this._state && !isNode) {
-      if (!this._pending) this._pending = this._fetch().catch(() => {}).finally(() => { this._pending = null })
+    if (this._state && !isNode && this._onUpdate) {
+      if (!this._pending) {
+        const served = this._state
+        this._pending = this._fetch()
+          .then(state => { if (!sameEntries(served, state)) this._onUpdate(this) })
+          .catch(() => {})
+          .finally(() => { this._pending = null })
+      }
       return this._state
     }
     if (!this._pending) {

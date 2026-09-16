@@ -274,6 +274,8 @@ export interface MinecraftAssetsOptions {
   manifestExpiry?: number | null
   /** Called with a 0 to 1 ratio while the manifest is built. Only "assets", which resolves every version's index. */
   onManifestProgress?: (progress: number) => void
+  /** Serves an expired manifest from the cache and refetches it in the background, then calls this if the new one differs. Browser only; without it an expired manifest is awaited. */
+  onManifestUpdate?: (manifest: ManifestAPI) => void
   /** Instance-wide default for the objects flag. Default false. */
   objects?: boolean
   /**

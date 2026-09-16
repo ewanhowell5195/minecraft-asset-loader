@@ -80,6 +80,7 @@ All options are optional:
 | `manifest` | | The listing to use instead of fetching it: Mojang's version manifest, or GitHub's releases array for `bedrock`. See [Your own manifest](#your-own-manifest) |
 | `manifestExpiry` | response headers | How long in milliseconds to trust a fetched manifest. `Infinity` keeps one copy for the whole session |
 | `onManifestProgress` | | Called with a 0 to 1 ratio while the manifest is built. Only `assets`, which resolves every version's asset index and takes hundreds of requests |
+| `onManifestUpdate` | | Serves an expired manifest from the cache and refetches it in the background, calling this with `assets.manifest` once a changed one is in place. Browser only. Without it an expired manifest is awaited |
 | `minecraft` | auto-detected | Serve from the local `.minecraft` installation when it has the file, before downloading. A string sets the folder, `false` disables. See [Local .minecraft](#local-minecraft) |
 
 ### Versions
