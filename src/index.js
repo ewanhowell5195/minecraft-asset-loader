@@ -4,7 +4,7 @@ import { VersionContext } from "./version.js"
 import { createStore } from "./store.js"
 import { objectUrl } from "./objects.js"
 import { buildZip, packEntry, decodeEntry, readZip, writeZip } from "./zip.js"
-import { isNode, decoder, pool, pathFilter, define, memo, memoMap } from "./util.js"
+import { isNode, decoder, pool, budget, pathFilter, define, memo, memoMap } from "./util.js"
 
 export { VersionType, LEGACY_ASSETS_BEFORE, readZip, writeZip }
 
@@ -410,6 +410,7 @@ export default class MinecraftAssets {
 
     if (dir == null) {
       const items = new Array(wanted.length)
+      const pause = budget()
       await pool(wanted, concurrency, async (f, i) => {
         if (!f.hash) {
           const { entry, data } = await jar.raw(f.path)
@@ -418,8 +419,9 @@ export default class MinecraftAssets {
           items[i] = await packEntry(f.path, await this._fetchObject(f.hash))
         }
         tick()
+        await pause()
       })
-      return buildZip(items)
+      return buildZip(items, pause)
     }
 
     const [fs, nodePath] = await Promise.all([import("node:fs/promises"), import("node:path")])

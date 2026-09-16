@@ -134,6 +134,21 @@ test("readZip and writeZip: roundtrip, exports, file entries", async () => {
 
   assert.deepEqual(readZip(await writeZip(entries)).map(e => e.crc), entries.map(e => e.crc), "readZip output repacks")
 
+  const untouched = entries.map(e => ({ ...e, crc: e.crc, size: e.size, raw: () => e.raw(), read: () => { throw new Error("read") } }))
+  const copied = readZip(await writeZip(untouched, { compress: false }))
+  assert.deepEqual(copied.map(e => e.crc), entries.map(e => e.crc), "copied entries keep their crc")
+  assert.deepEqual(await copied[1].raw(), await entries[1].raw(), "copied entries keep their stored bytes")
+  assert.equal(new TextDecoder().decode(await copied[0].read()), "hello", "copied entries still read back")
+
+  const many = readZip(await writeZip(Object.fromEntries(Array.from({ length: 5000 }, (_, i) => [`f${i}.bin`, new Uint8Array(2048)]))))
+  let turns = 0
+  let spinning = true
+  const spin = () => { if (spinning) { turns++; setImmediate(spin) } }
+  setImmediate(spin)
+  await writeZip(many)
+  spinning = false
+  assert.ok(turns > 0, "writeZip yields to the event loop while packing")
+
   const raw = await entries[0].raw()
   assert.ok(raw.compression === null || raw.compression === "deflate-raw")
   assert.ok(raw.bytes instanceof Uint8Array)

@@ -16,6 +16,15 @@ export async function pool(items, limit, fn) {
   await Promise.all(workers)
 }
 
+export function budget(ms = 8) {
+  let deadline = performance.now() + ms
+  return async () => {
+    if (performance.now() < deadline) return
+    await new Promise(resolve => setTimeout(resolve, 0))
+    deadline = performance.now() + ms
+  }
+}
+
 export function hashFromUrl(url) {
   const parts = String(url).split("/")
   return parts.length >= 2 ? parts[parts.length - 2] : String(url)

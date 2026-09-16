@@ -63,11 +63,20 @@ export interface ZipEntry {
 /** Parses zip bytes into entries. Nothing is decompressed until an entry is read. */
 export function readZip(bytes: Uint8Array | ArrayBuffer): ZipEntry[]
 
-/** Builds a zip from a Map or plain object of path to bytes, or an array of entries with read(). */
+/**
+ * Builds a zip from a Map or plain object of path to bytes, or an array of entries with read().
+ * An entry that also has raw(), crc and size is copied as stored, without decompressing or recompressing it.
+ */
 export function writeZip(
-  files: Map<string, Uint8Array> | Record<string, Uint8Array> | Array<{ path: string, read(): Uint8Array | Promise<Uint8Array> }>,
+  files: Map<string, Uint8Array> | Record<string, Uint8Array> | Array<{
+    path: string
+    read(): Uint8Array | Promise<Uint8Array>
+    raw?(): Promise<RawBytes>
+    crc?: number
+    size?: number
+  }>,
   options?: {
-    /** false stores everything uncompressed, faster for already-compressed files. Default true. */
+    /** false stores everything uncompressed, faster for already-compressed files. Copied entries keep their stored form either way. Default true. */
     compress?: boolean
     /** How many files pack at once. Default 32. */
     concurrency?: number

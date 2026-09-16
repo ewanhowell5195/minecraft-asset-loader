@@ -1,4 +1,4 @@
-import { isNode, encoder, decoder, define, pool } from "./util.js"
+import { isNode, encoder, decoder, define, pool, budget } from "./util.js"
 import { inflateSync } from "./inflate.js"
 
 const INLINE_INFLATE_MAX = 1 << 20
@@ -140,12 +140,13 @@ export function entryFromBuffer(buf, entry) {
 const DOS_TIME = 0
 const DOS_DATE = 0x21
 
-export function buildZip(items) {
+export async function buildZip(items, pause = budget()) {
   if (items.length > 0xffff) throw new Error("Too many entries for a plain zip")
   const parts = []
   const centrals = []
   let offset = 0
   for (const it of items) {
+    await pause()
     const name = encoder.encode(it.path)
     const local = new Uint8Array(30 + name.length)
     const lv = new DataView(local.buffer)
@@ -195,6 +196,7 @@ export function buildZip(items) {
   for (const p of parts.concat(centrals, [eocd])) {
     out.set(p, at)
     at += p.length
+    await pause()
   }
   return out
 }
@@ -224,15 +226,28 @@ export function readZip(bytes) {
   })
 }
 
+export async function copyEntry(path, entry) {
+  const { compression, bytes } = await entry.raw()
+  return { path, method: compression ? 8 : 0, crc: entry.crc, size: entry.size, compressedSize: bytes.length, data: bytes }
+}
+
+function copyable(entry) {
+  return typeof entry.raw === "function" && typeof entry.crc === "number" && typeof entry.size === "number"
+}
+
 export async function writeZip(files, { compress = true, concurrency = 32, onProgress } = {}) {
   const list = files instanceof Map ? Array.from(files)
     : Array.isArray(files) ? files.map(f => [f.path, f])
     : Object.entries(files)
   const items = new Array(list.length)
+  const pause = budget()
   let done = 0
   await pool(list, concurrency, async ([path, data], i) => {
-    items[i] = await packEntry(path, data instanceof Uint8Array ? data : await data.read(), compress)
+    items[i] = data instanceof Uint8Array ? await packEntry(path, data, compress)
+      : copyable(data) ? await copyEntry(path, data)
+      : await packEntry(path, await data.read(), compress)
     onProgress?.(++done, list.length)
+    await pause()
   })
-  return buildZip(items)
+  return buildZip(items, pause)
 }
