@@ -54,6 +54,7 @@ export function inflateSync(src, size) {
 
   function fill(n) {
     while (bitCnt < n) {
+      if (ip > end + 4) throw new Error("Truncated deflate data")
       bitBuf |= (ip < end ? src[ip] : 0) << bitCnt
       ip++
       bitCnt += 8
@@ -109,6 +110,7 @@ export function inflateSync(src, size) {
       bitCnt = 0
       const len = src[ip] | (src[ip + 1] << 8)
       ip += 4
+      if (ip + len > end) throw new Error("Truncated deflate data")
       grow(pos + len)
       out.set(src.subarray(ip, ip + len), pos)
       ip += len

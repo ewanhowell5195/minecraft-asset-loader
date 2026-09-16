@@ -185,10 +185,15 @@ export class Jar extends ZipSource {
 
   async _loadBuffer() {
     const cached = await this.cached()
-    if (cached) return cached
     const { entries, cdOffset } = await this.listing()
+    if (cached) {
+      if (this._covers(cached, entries)) return cached
+      await this.store.delete("blobs", this.blobKey).catch(() => {})
+    }
     const tail = this._tail
-    const ranges = Array.from(entries.values()).map(e => this._entryRange(e, tail ? tail.start : this.size))
+    const ranges = Array.from(entries.values())
+      .filter(e => !tail || e.offset < tail.start)
+      .map(e => this._entryRange(e, this.size))
     if (!tail) ranges.push([cdOffset, this.size])
     const merged = mergeRanges(ranges, MERGE_GAP)
     const onProgress = this._progress
@@ -218,6 +223,20 @@ export class Jar extends ZipSource {
   _entryRange(e, limit) {
     const end = e.offset + 30 + (e.nameLen ?? encoder.encode(e.path).length) + e.compressedSize + LOCAL_PAD
     return [e.offset, Math.min(limit, end)]
+  }
+
+  _covers(chunks, entries) {
+    for (const e of entries.values()) {
+      const chunk = chunks.findLast(c => c.start <= e.offset)
+      if (!chunk) return false
+      const at = e.offset - chunk.start
+      const bytes = chunk.bytes
+      if (at + 30 > bytes.length) return false
+      const nameLen = bytes[at + 26] | (bytes[at + 27] << 8)
+      const extraLen = bytes[at + 28] | (bytes[at + 29] << 8)
+      if (at + 30 + nameLen + extraLen + e.compressedSize > bytes.length) return false
+    }
+    return true
   }
 
   async raw(path) {
