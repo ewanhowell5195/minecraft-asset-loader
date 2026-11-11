@@ -293,7 +293,7 @@ export interface MinecraftAssetsOptions {
    * location; a string sets the folder, `false` disables. Files are sha1-verified against the
    * manifest before use, and anything missing or failing falls back to the normal download.
    */
-  minecraft?: string | boolean
+  minecraftDir?: string | boolean
 }
 
 export default class MinecraftAssets {

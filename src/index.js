@@ -70,13 +70,13 @@ function bedrockPaths(p, base, kind, exts) {
 const isEntry = x => x != null && typeof x === "object" && typeof x.path === "string"
 
 export default class MinecraftAssets {
-  constructor({ type = "java", cacheDir, cacheSize, cacheKey, cacheAPI, proxy, version, manifest, manifestExpiry, onManifestProgress, onManifestUpdate, objects, minecraft } = {}) {
+  constructor({ type = "java", cacheDir, cacheSize, cacheKey, cacheAPI, proxy, version, manifest, manifestExpiry, onManifestProgress, onManifestUpdate, objects, minecraftDir } = {}) {
     if (type !== "java" && type !== "assets" && type !== "bedrock") throw new TypeError(`Unknown type "${type}"`)
     this._type = type
     this._version = version ?? "release"
     this._objects = !!objects
     this._proxy = proxy
-    this._minecraft = minecraft
+    this._minecraftDir = minecraftDir
     this._localInstall = null
     this._store = createStore({ cacheAPI, cacheDir, cacheSize, cacheKey })
     this.manifest = new Manifest(this, { manifest, manifestExpiry, onProgress: onManifestProgress, onUpdate: onManifestUpdate })
@@ -87,9 +87,9 @@ export default class MinecraftAssets {
 
   _local() {
     return memo(this, "_localInstall", async () => {
-      if (!isNode || this._minecraft === false || this._type === "bedrock") return null
+      if (!isNode || this._minecraftDir === false || this._type === "bedrock") return null
       const { LocalInstall, defaultMinecraftDir } = await import("./local.js")
-      return new LocalInstall(typeof this._minecraft === "string" ? this._minecraft : defaultMinecraftDir(), this._store)
+      return new LocalInstall(typeof this._minecraftDir === "string" ? this._minecraftDir : defaultMinecraftDir(), this._store)
     })
   }
 

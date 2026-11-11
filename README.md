@@ -81,7 +81,7 @@ All options are optional:
 | `manifestExpiry` | response headers | How long in milliseconds to trust a fetched manifest. `Infinity` keeps one copy for the whole session |
 | `onManifestProgress` | | Called with a 0 to 1 ratio while the manifest is built. Only `assets`, which resolves every version's asset index and takes hundreds of requests |
 | `onManifestUpdate` | | Serves an expired manifest from the cache and refetches it in the background, calling this with `assets.manifest` once a changed one is in place. Browser only. Without it an expired manifest is awaited |
-| `minecraft` | auto-detected | Serve from the local `.minecraft` installation when it has the file, before downloading. A string sets the folder, `false` disables. See [Local .minecraft](#local-minecraft) |
+| `minecraftDir` | auto-detected | Serve from the local `.minecraft` installation when it has the file, before downloading. A string sets the folder, `false` disables. See [Local .minecraft](#local-minecraft) |
 
 ### Versions
 
@@ -321,7 +321,7 @@ const count = await assets.export({ dir: "./out", version: "b1.7.3" })
 
 ### Local .minecraft
 
-In Node.js, the `"java"` and `"assets"` types check the local `.minecraft` installation before downloading anything: version jars, asset indexes, and asset objects are all served straight from disk when the launcher already has them. This is on by default at the platform's standard location, `minecraft: "path/to/.minecraft"` points it somewhere else, and `minecraft: false` turns it off.
+In Node.js, the `"java"` and `"assets"` types check the local `.minecraft` installation before downloading anything: version jars, asset indexes, and asset objects are all served straight from disk when the launcher already has them. This is on by default at the platform's standard location, `minecraftDir: "path/to/.minecraft"` points it somewhere else, and `minecraftDir: false` turns it off.
 
 ### Caching
 

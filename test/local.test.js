@@ -31,7 +31,7 @@ async function offline(fn) {
   }
 }
 
-const setup = new MinecraftAssets({ cacheAPI: {}, minecraft: false })
+const setup = new MinecraftAssets({ cacheAPI: {}, minecraftDir: false })
 const details = await setup.manifest.details("1.21.4")
 const index = details.assetIndex
 const indexBytes = new Uint8Array(await (await fetch(index.url)).arrayBuffer())
@@ -57,7 +57,7 @@ await put(path.join(FAKE, "versions", JAR_VERSION, JAR_VERSION + ".jar"), jarByt
 test("jar: served and listed from disk, fully offline", async () => {
   const store = new Map()
   const api = { read: k => store.get(k), write: (k, d) => store.set(k, d) }
-  const warm = new MinecraftAssets({ cacheAPI: api, minecraft: FAKE, version: JAR_VERSION })
+  const warm = new MinecraftAssets({ cacheAPI: api, minecraftDir: FAKE, version: JAR_VERSION })
   const terrain = await warm.read("terrain.png")
   assert.ok(terrain.length > 1000)
   assert.ok(!Array.from(store.keys()).some(k => k.startsWith("blobs/jar_")), "the local jar is not copied into the cache")
@@ -65,23 +65,23 @@ test("jar: served and listed from disk, fully offline", async () => {
   await sleep(600)
 
   await offline(async () => {
-    const mc = new MinecraftAssets({ cacheAPI: api, minecraft: FAKE, version: JAR_VERSION, manifest: { versions: [jarRow] } })
+    const mc = new MinecraftAssets({ cacheAPI: api, minecraftDir: FAKE, version: JAR_VERSION, manifest: { versions: [jarRow] } })
     assert.deepEqual(Array.from(await mc.read("terrain.png")), Array.from(terrain))
     assert.ok((await mc.list()).some(f => f.path === "pack.png"))
 
-    const off = new MinecraftAssets({ cacheAPI: api, minecraft: false, version: JAR_VERSION, manifest: { versions: [jarRow] } })
-    await assert.rejects(off.read("terrain.png"), /OFFLINE/, "minecraft: false really turns it off")
+    const off = new MinecraftAssets({ cacheAPI: api, minecraftDir: false, version: JAR_VERSION, manifest: { versions: [jarRow] } })
+    await assert.rejects(off.read("terrain.png"), /OFFLINE/, "minecraftDir: false really turns it off")
   })
 })
 
 test("assets mode: index and objects from disk, fully offline", async () => {
   await offline(async () => {
-    const mc = new MinecraftAssets({ cacheAPI: withIndexes(), minecraft: FAKE, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
+    const mc = new MinecraftAssets({ cacheAPI: withIndexes(), minecraftDir: FAKE, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
     assert.ok((await mc.list()).length > 3000)
     assert.deepEqual(Array.from(await mc.read(SOUND)), Array.from(soundBytes))
     assert.ok((await mc.getSound("note/pling")).length === soundBytes.length)
 
-    const off = new MinecraftAssets({ cacheAPI: {}, minecraft: false, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
+    const off = new MinecraftAssets({ cacheAPI: {}, minecraftDir: false, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
     await assert.rejects(off.list(), /OFFLINE/)
   })
 })
@@ -97,11 +97,11 @@ test("corrupt local files are ignored, not served", async () => {
   badJar[100] ^= 0xff
   await put(path.join(bad, "versions", JAR_VERSION, JAR_VERSION + ".jar"), badJar)
 
-  const mc = new MinecraftAssets({ cacheAPI: withIndexes(), minecraft: bad, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
+  const mc = new MinecraftAssets({ cacheAPI: withIndexes(), minecraftDir: bad, type: "assets", version: index.id, manifest: { versions: [assetsRow] } })
   assert.deepEqual(Array.from(await mc.read(SOUND)), Array.from(soundBytes), "hash mismatch falls back to the network")
 
   const store = new Map()
-  const java = new MinecraftAssets({ cacheAPI: { read: k => store.get(k), write: (k, d) => store.set(k, d) }, minecraft: bad, version: JAR_VERSION })
+  const java = new MinecraftAssets({ cacheAPI: { read: k => store.get(k), write: (k, d) => store.set(k, d) }, minecraftDir: bad, version: JAR_VERSION })
   assert.ok((await java.read("terrain.png")).length > 1000)
   assert.ok(!store.has("meta/local_jar_" + client.sha1), "a tampered jar is never trusted")
   await fs.rm(bad, { recursive: true, force: true })
@@ -139,7 +139,7 @@ test("a vanished file mid-session falls back cleanly", async () => {
   const gone = path.join(os.tmpdir(), "minecraft-assets-tests", "local-gone")
   await fs.rm(gone, { recursive: true, force: true })
   await put(path.join(gone, "versions", JAR_VERSION, JAR_VERSION + ".jar"), jarBytes)
-  const mc = new MinecraftAssets({ cacheAPI: {}, minecraft: gone, version: JAR_VERSION })
+  const mc = new MinecraftAssets({ cacheAPI: {}, minecraftDir: gone, version: JAR_VERSION })
   await mc.list()
   await fs.rm(gone, { recursive: true, force: true })
   assert.ok((await mc.read("terrain.png")).length > 1000, "reads switch to the network when the file disappears")
