@@ -83,7 +83,8 @@ export class Jar extends ZipSource {
       tick?.(wanted)
       return this._whole.subarray(start, end)
     }
-    const res = await this.request(this.url, { headers: { Range: `bytes=${start}-${end - 1}` } })
+    // a browser's HTTP cache can answer a range with only the part of it an earlier range already fetched
+    const res = await this.request(this.url, { headers: { Range: `bytes=${start}-${end - 1}` }, cache: "no-store" })
     if (res.status === 200) {
       const whole = new Uint8Array(await res.arrayBuffer())
       if (whole.length !== this.size) throw new Error(`Ranged request refused (200, ${whole.length} bytes for the whole jar) by ${this.url}`)

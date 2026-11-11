@@ -58,3 +58,19 @@ test("entries straddling the tail chunk boundary read back whole", async () => {
     assert.equal(raw.bytes.length, entries.find(e => e.path === entry.path).compressedSize, entry.path + " raw length")
   }
 })
+
+test("a second load is not handed part of a range by the browser's HTTP cache", async () => {
+  const held = []
+  globalThis.fetch = (url, init) => {
+    const m = String(url) === JAR && /bytes=(\d+)-(\d+)/.exec(init?.headers?.Range ?? "")
+    if (!m || init.cache === "no-store") return serve(String(url), init)
+    const [start, end] = [+m[1], +m[2] + 1]
+    const earlier = held.find(([from, to]) => from < start && to > start && to < end)
+    held.push([start, end])
+    return new Response(zip.slice(start, earlier ? earlier[1] : end), { status: 206 })
+  }
+  for (let load = 0; load < 2; load++) {
+    const mc = new MinecraftAssets({ version: "t1", cacheAPI: {} })
+    for (const entry of await mc.list()) assert.deepEqual(await mc.read(entry.path), files[entry.path], entry.path)
+  }
+})
